@@ -29,7 +29,7 @@ from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
 from flwr.common.logger import log
 from flwr.proto.exec_pb2 import (
     StartRunRequest,
-    FetchLogsRequest,
+    StreamLogsRequest,
 )  # pylint: disable=E0611
 from flwr.proto.exec_pb2_grpc import ExecStub
 from flwr.simulation.run_simulation import _run_simulation
@@ -106,9 +106,9 @@ def run(
 
         req = StartRunRequest(fab_file=open(fab_path, "rb").read())
         res = stub.StartRun(req)
-
+        print(f'RUN ID: {res.run_id}')
         if follow:
-            req = FetchLogsRequest(run_id=res.run_id)
+            req = StreamLogsRequest(run_id=res.run_id)
             for res in stub.FetchLogs(req):
                 print(res.log_output)
     else:

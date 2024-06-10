@@ -29,8 +29,8 @@ from flwr.proto import exec_pb2_grpc  # pylint: disable=E0611
 from flwr.proto.exec_pb2 import (  # pylint: disable=E0611
     StartRunRequest,
     StartRunResponse,
-    FetchLogsRequest,
-    FetchLogsResponse,
+    StreamLogsRequest,
+    StreamLogsResponse,
 )
 
 from .executor import Executor
@@ -45,6 +45,8 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         self.logs = []
         self.lock = threading.Lock()
 
+        # self.stop_event = threading.Event()
+
     def StartRun(
         self, request: StartRunRequest, context: grpc.ServicerContext
     ) -> StartRunResponse:
@@ -53,8 +55,9 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         run = self.plugin.start_run(request.fab_file)
         self.runs[run.run_id] = run.proc
 
-        # Start background thread to capture logs
+        # Start log capturing
         self._capture_logs(run.proc)
+
         return StartRunResponse(run_id=run.run_id)
 
     def _capture_logs(self, proc):
@@ -71,19 +74,54 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
                             elif stream == proc.stderr:
                                 self.logs.append(f"[ STDERR ]: {line}")
 
-        threading.Thread(target=run, daemon=True).start()
+        # def run():
+        #     while not self.stop_event.is_set():
+        #         ready_to_read, _, _ = select.select([proc.stderr], [], [], 0.1)
+        #         for stream in ready_to_read:
+        #             line = stream.readline().rstrip()
+        #             if line:
+        #                 with self.lock:
+        #                     self.logs.append(f"{line}")
 
-    def FetchLogs(
-        self, request: FetchLogsRequest, context: grpc.ServicerContext
-    ) -> Generator[FetchLogsResponse, Any, None]:
+        #         # Check if the subprocess has finished
+        #         if proc.poll() is not None:
+        #             break
+
+        # Start a background thread to capture the log output
+        self.capture_thread = threading.Thread(target=run, daemon=True)
+        self.capture_thread.start()
+
+        # # Ensure all remaining output is captured
+        # self._drain_streams(proc=proc)
+        # proc.stdout.close()
+        # proc.stderr.close()
+
+    # def _drain_streams(self, proc):
+    #     while True:
+    #         ready_to_read, _, _ = select.select([proc.stderr], [], [], 0.1)
+    #         if not ready_to_read:
+    #             break
+    #         for stream in ready_to_read:
+    #             line = stream.readline().strip()
+    #             if line:
+    #                 with self.lock:
+    #                     self.logs.append(f"{line}")
+
+    def StreamLogs(
+        self, request: StreamLogsRequest, context: grpc.ServicerContext
+    ) -> Generator[StreamLogsResponse, Any, None]:
         """Get logs."""
-        log(INFO, "ExecServicer.FetchLogs")
+        log(INFO, "ExecServicer.StreamLogs")
 
         last_sent_index = 0
         while context.is_active():
             with self.lock:
                 if last_sent_index < len(self.logs):
                     for i in range(last_sent_index, len(self.logs)):
-                        yield FetchLogsResponse(log_output=self.logs[i])
+                        yield StreamLogsResponse(log_output=self.logs[i])
                     last_sent_index = len(self.logs)
             time.sleep(0.1)  # Sleep briefly to avoid busy waiting
+
+        # If the client disconnects, check if we should stop the capture thread
+        if self.runs[request.run_id].poll() is not None:
+            self.stop_event.set()

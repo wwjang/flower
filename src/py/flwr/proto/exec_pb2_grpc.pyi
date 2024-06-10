@@ -14,9 +14,9 @@ class ExecStub:
         flwr.proto.exec_pb2.StartRunResponse]
     """Start run upon request"""
 
-    FetchLogs: grpc.UnaryStreamMultiCallable[
-        flwr.proto.exec_pb2.FetchLogsRequest,
-        flwr.proto.exec_pb2.FetchLogsResponse]
+    StreamLogs: grpc.UnaryStreamMultiCallable[
+        flwr.proto.exec_pb2.StreamLogsRequest,
+        flwr.proto.exec_pb2.StreamLogsResponse]
     """Start log stream upon request"""
 
 
@@ -30,10 +30,10 @@ class ExecServicer(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def FetchLogs(self,
-        request: flwr.proto.exec_pb2.FetchLogsRequest,
+    def StreamLogs(self,
+        request: flwr.proto.exec_pb2.StreamLogsRequest,
         context: grpc.ServicerContext,
-    ) -> typing.Iterator[flwr.proto.exec_pb2.FetchLogsResponse]:
+    ) -> typing.Iterator[flwr.proto.exec_pb2.StreamLogsResponse]:
         """Start log stream upon request"""
         pass
 

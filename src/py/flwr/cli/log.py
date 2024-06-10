@@ -33,7 +33,7 @@ def log(
 
     from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
     from flwr.common.logger import log
-    from flwr.proto.exec_pb2 import FetchLogsRequest
+    from flwr.proto.exec_pb2 import StreamLogsRequest
     from flwr.proto.exec_pb2_grpc import ExecStub
 
     def on_channel_state_change(channel_connectivity: str) -> None:
@@ -50,9 +50,9 @@ def log(
     channel.subscribe(on_channel_state_change)
     stub = ExecStub(channel)
 
-    req = FetchLogsRequest(run_id=run_id)
+    req = StreamLogsRequest(run_id=run_id)
 
-    for res in stub.FetchLogs(req):
+    for res in stub.StreamLogs(req):
         print(res.log_output)
         if follow:
             continue
