@@ -16,6 +16,9 @@
 
 import typer
 from typing_extensions import Annotated
+from logging import INFO
+
+from flwr.common import log
 
 
 def log(
@@ -48,13 +51,16 @@ def log(
         interceptors=None,
     )
     channel.subscribe(on_channel_state_change)
-    stub = ExecStub(channel)
 
-    req = StreamLogsRequest(run_id=run_id)
+    try:
+        stub = ExecStub(channel)
+        req = StreamLogsRequest(run_id=run_id)
 
-    for res in stub.StreamLogs(req):
-        print(res.log_output)
-        if follow:
-            continue
-        else:
-            break
+        for res in stub.StreamLogs(req):
+            print(res.log_output)
+            if follow:
+                continue
+            else:
+                break
+    except KeyboardInterrupt:
+        log(INFO, "Exiting `flwr log`.")

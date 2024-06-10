@@ -45,7 +45,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         self.logs = []
         self.lock = threading.Lock()
 
-        # self.stop_event = threading.Event()
+        self.stop_event = threading.Event()
 
     def StartRun(
         self, request: StartRunRequest, context: grpc.ServicerContext
@@ -56,56 +56,55 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         self.runs[run.run_id] = run.proc
 
         # Start log capturing
-        self._capture_logs(run.proc)
+        # self._capture_logs(run.proc)
+        # Start a background thread to capture the log output
+        self.capture_thread = threading.Thread(target=self._capture_logs, args=(run.proc,), daemon=True)
+        self.capture_thread.start()
 
         return StartRunResponse(run_id=run.run_id)
 
     def _capture_logs(self, proc):
-        select_timeout = 1.0
-        def run():
-            while True:
-                ready_to_read, _, _ = select.select([proc.stdout, proc.stderr], [], [], select_timeout)
-                for stream in ready_to_read:
-                    line = stream.readline().rstrip()
-                    if line:
-                        with self.lock:
-                            if stream == proc.stdout:
-                                self.logs.append(f"[ STDOUT ]: {line}")
-                            elif stream == proc.stderr:
-                                self.logs.append(f"[ STDERR ]: {line}")
-
+        select_timeout = 0.1
         # def run():
-        #     while not self.stop_event.is_set():
-        #         ready_to_read, _, _ = select.select([proc.stderr], [], [], 0.1)
+        #     while True:
+        #         ready_to_read, _, _ = select.select([proc.stdout, proc.stderr], [], [], select_timeout)
         #         for stream in ready_to_read:
         #             line = stream.readline().rstrip()
         #             if line:
         #                 with self.lock:
-        #                     self.logs.append(f"{line}")
+        #                     if stream == proc.stdout:
+        #                         self.logs.append(f"[ STDOUT ]: {line}")
+        #                     elif stream == proc.stderr:
+        #                         self.logs.append(f"[ STDERR ]: {line}")
 
-        #         # Check if the subprocess has finished
-        #         if proc.poll() is not None:
-        #             break
+        while not self.stop_event.is_set():
+            ready_to_read, _, _ = select.select([proc.stdout, proc.stderr], [], [], select_timeout) 
+            for stream in ready_to_read:
+                line = stream.readline().rstrip()
+                if line:
+                    with self.lock:
+                        self.logs.append(f"{line}")
 
-        # Start a background thread to capture the log output
-        self.capture_thread = threading.Thread(target=run, daemon=True)
-        self.capture_thread.start()
+            # Check if the subprocess has finished
+            if proc.poll() is not None:
+                break
 
-        # # Ensure all remaining output is captured
-        # self._drain_streams(proc=proc)
-        # proc.stdout.close()
-        # proc.stderr.close()
+        # Ensure all remaining output is captured
+        self._drain_streams(proc=proc)
+        proc.stdout.close()
+        proc.stderr.close()
+        print("Success")
 
-    # def _drain_streams(self, proc):
-    #     while True:
-    #         ready_to_read, _, _ = select.select([proc.stderr], [], [], 0.1)
-    #         if not ready_to_read:
-    #             break
-    #         for stream in ready_to_read:
-    #             line = stream.readline().strip()
-    #             if line:
-    #                 with self.lock:
-    #                     self.logs.append(f"{line}")
+    def _drain_streams(self, proc):
+        while True:
+            ready_to_read, _, _ = select.select([proc.stdout, proc.stderr], [], [], 0.1)
+            if not ready_to_read:
+                break
+            for stream in ready_to_read:
+                line = stream.readline().strip()
+                if line:
+                    with self.lock:
+                        self.logs.append(f"{line}")
 
     def StreamLogs(
         self, request: StreamLogsRequest, context: grpc.ServicerContext
