@@ -59,14 +59,17 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
 
     def _capture_logs(self, proc):
         select_timeout = 1.0
-
         def run():
             while True:
-                reads, _, _ = select.select([proc.stderr], [], [], select_timeout)
-                if reads:
-                    line = proc.stderr.readline()
+                ready_to_read, _, _ = select.select([proc.stdout, proc.stderr], [], [], select_timeout)
+                for stream in ready_to_read:
+                    line = stream.readline().rstrip()
                     if line:
-                        self.logs.append(line.rstrip())
+                        with self.lock:
+                            if stream == proc.stdout:
+                                self.logs.append(f"[ STDOUT ]: {line}")
+                            elif stream == proc.stderr:
+                                self.logs.append(f"[ STDERR ]: {line}")
 
         threading.Thread(target=run, daemon=True).start()
 
