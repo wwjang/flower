@@ -15,7 +15,7 @@
 """SuperExec API servicer."""
 
 
-from logging import INFO
+from logging import INFO, DEBUG
 from subprocess import Popen
 from typing import Dict, Generator, Any
 
@@ -58,7 +58,11 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         # Start log capturing
         # self._capture_logs(run.proc)
         # Start a background thread to capture the log output
-        self.capture_thread = threading.Thread(target=self._capture_logs, args=(run.proc,), daemon=True)
+        self.capture_thread = threading.Thread(
+            target=self._capture_logs,
+            args=(run.proc,),
+            daemon=True
+        )
         self.capture_thread.start()
 
         return StartRunResponse(run_id=run.run_id)
@@ -78,7 +82,12 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         #                         self.logs.append(f"[ STDERR ]: {line}")
 
         while not self.stop_event.is_set():
-            ready_to_read, _, _ = select.select([proc.stdout, proc.stderr], [], [], select_timeout) 
+            ready_to_read, _, _ = select.select(
+                [proc.stdout, proc.stderr],
+                [],
+                [],
+                select_timeout,
+            ) 
             for stream in ready_to_read:
                 line = stream.readline().rstrip()
                 if line:
@@ -87,17 +96,23 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
 
             # Check if the subprocess has finished
             if proc.poll() is not None:
+                log(DEBUG, "Finished capturing logs")
                 break
 
         # Ensure all remaining output is captured
         self._drain_streams(proc=proc)
         proc.stdout.close()
         proc.stderr.close()
-        print("Success")
 
     def _drain_streams(self, proc):
+        log(DEBUG, "Draining logs")
         while True:
-            ready_to_read, _, _ = select.select([proc.stdout, proc.stderr], [], [], 0.1)
+            ready_to_read, _, _ = select.select(
+                [proc.stdout, proc.stderr],
+                [],
+                [],
+                0.1,
+            )
             if not ready_to_read:
                 break
             for stream in ready_to_read:
