@@ -42,15 +42,11 @@ def log(
         """Log channel connectivity."""
         log(DEBUG, channel_connectivity)
 
-    def stream_logs(run_id, channel_configs, duration):
-
+    def stream_logs(run_id, channel, duration):
+        """Stream logs with connection refresh."""
         start_time = time.time()
-        channel = create_channel(**channel_configs)
-        channel.subscribe(on_channel_state_change)
-
         stub = ExecStub(channel)
         req = StreamLogsRequest(run_id=run_id)
-
         for res in stub.StreamLogs(req):
             print(res.log_output)
             if follow and time.time() - start_time < duration:
@@ -59,20 +55,20 @@ def log(
                 log(INFO, "Logstream exceeded duration.")
                 break
 
-    CHANNEL_CONFIGS = {
-        'server_address': "127.0.0.1:9093",
-        'insecure': True,
-        'root_certificates': None,
-        'max_message_length': GRPC_MAX_MESSAGE_LENGTH,
-        'interceptors': None,
-    }
+    channel = create_channel(
+        server_address="127.0.0.1:9093",
+        insecure=True,
+        root_certificates=None,
+        max_message_length=GRPC_MAX_MESSAGE_LENGTH,
+        interceptors=None,
+    )
+    channel.subscribe(on_channel_state_change)
     STREAM_DURATION = 60
 
     try:
         while True:
-            stream_logs(run_id, CHANNEL_CONFIGS, STREAM_DURATION)
+            stream_logs(run_id, channel, STREAM_DURATION)
             time.sleep(5)
             log(INFO, "Reconnecting to logstream.")
-
     except KeyboardInterrupt:
         log(INFO, "Exiting `flwr log`.")
