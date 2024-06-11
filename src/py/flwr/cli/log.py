@@ -18,6 +18,7 @@ import typer
 from typing_extensions import Annotated
 from logging import INFO
 import time
+import grpc
 
 
 def log(
@@ -47,13 +48,26 @@ def log(
         start_time = time.time()
         stub = ExecStub(channel)
         req = StreamLogsRequest(run_id=run_id)
+
         for res in stub.StreamLogs(req):
             print(res.log_output)
-            if follow and time.time() - start_time < duration:
-                continue
-            else:
-                log(INFO, "Logstream exceeded duration.")
+            if time.time() - start_time > duration:
                 break
+
+    def print_logs(run_id, channel, timeout):
+        """Print logs."""
+        stub = ExecStub(channel)
+        req = StreamLogsRequest(run_id=run_id)
+
+        while True:
+            try:
+                # Enforce timeout for graceful exit
+                for res in stub.StreamLogs(req, timeout=timeout):
+                    print(res.log_output)
+            except grpc.RpcError as e:
+                if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+                    channel.close()
+                    break
 
     channel = create_channel(
         server_address="127.0.0.1:9093",
@@ -63,12 +77,17 @@ def log(
         interceptors=None,
     )
     channel.subscribe(on_channel_state_change)
-    STREAM_DURATION = 60
+    STREAM_DURATION = 5
 
     try:
-        while True:
-            stream_logs(run_id, channel, STREAM_DURATION)
-            time.sleep(5)
-            log(INFO, "Reconnecting to logstream.")
+        if follow:
+            while True:
+                log(INFO, f"Streaming logs")
+                stream_logs(run_id, channel, STREAM_DURATION)
+                time.sleep(2)
+                log(INFO, "Reconnecting to logstream")
+        else:
+            print_logs(run_id, channel, timeout=1)
     except KeyboardInterrupt:
-        log(INFO, "Exiting `flwr log`.")
+        log(INFO, "Exiting logstream")
+        channel.close()
