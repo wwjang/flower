@@ -26,6 +26,13 @@ def log(
         int,
         typer.Option(case_sensitive=False, help="The Flower run ID to query"),
     ],
+    period: Annotated[
+        int,
+        typer.Option(
+            case_sensitive=False,
+            help="Use this to set connection refresh time period (in seconds)",
+        ),
+    ] = 60,
     follow: Annotated[
         bool,
         typer.Option(case_sensitive=False, help="Use this flag to follow logstream"),
@@ -44,7 +51,7 @@ def log(
         log(DEBUG, channel_connectivity)
 
     def stream_logs(run_id, channel, duration):
-        """Stream logs with connection refresh."""
+        """Stream logs from the beginning of a run with connection refresh."""
         start_time = time.time()
         stub = ExecStub(channel)
         req = StreamLogsRequest(run_id=run_id)
@@ -55,7 +62,7 @@ def log(
                 break
 
     def print_logs(run_id, channel, timeout):
-        """Print logs."""
+        """Print logs from the beginning of a run."""
         stub = ExecStub(channel)
         req = StreamLogsRequest(run_id=run_id)
 
@@ -77,13 +84,12 @@ def log(
         interceptors=None,
     )
     channel.subscribe(on_channel_state_change)
-    STREAM_DURATION = 5
 
     if follow:
         try:
             while True:
                 log(INFO, f"Streaming logs")
-                stream_logs(run_id, channel, STREAM_DURATION)
+                stream_logs(run_id, channel, period)
                 time.sleep(2)
                 log(INFO, "Reconnecting to logstream")
         except KeyboardInterrupt:
