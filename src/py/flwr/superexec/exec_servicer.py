@@ -85,34 +85,12 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
             # Check if the subprocess has finished
             if proc.poll() is not None:
                 log(INFO, "Subprocess finished, exiting log capture")
-                # Ensure all remaining output is captured
-                self._drain_streams(proc=proc)
                 proc.stdout.close()
                 proc.stderr.close()
                 log(INFO, "Regain servicer thread")
                 self.stop_event.set()
                 self.capture_thread.join()
                 break
-
-    def _drain_streams(self, proc):
-        log(INFO, "Draining logs")
-        while True:
-            ready_to_read, _, _ = select.select(
-                [proc.stdout, proc.stderr],
-                [],
-                [],
-                self.select_timeout,
-            )
-            if not ready_to_read:
-                log(INFO, "XX")
-                break
-            for stream in ready_to_read:
-                line = stream.readline().strip()
-                if line:
-                    with self.lock:
-                        self.logs.append(f"{line}")
-
-        log(INFO, "XX")
 
     def StreamLogs(
         self, request: StreamLogsRequest, context: grpc.ServicerContext
