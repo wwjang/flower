@@ -42,11 +42,11 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
     def __init__(self, plugin: Executor) -> None:
         self.plugin = plugin
         self.runs: Dict[int, Popen[str]] = {}
-        self.logs = []
 
         self.lock = threading.Lock()
-        self.stop_event = threading.Event()
+
         self.select_timeout: int = 1
+        self.log_streams = {}
 
     def StartRun(
         self, request: StartRunRequest, context: grpc.ServicerContext
@@ -56,22 +56,29 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         run = self.plugin.start_run(request.fab_file)
         self.runs[run.run_id] = run.proc
 
-        # Start log capturing
-        # self._capture_logs(run.proc)
+        stop_event = threading.Event()
+        logs = []
         # Start a background thread to capture the log output
-        self.capture_thread = threading.Thread(
+        capture_thread = threading.Thread(
             target=self._capture_logs,
-            args=(run.proc,),
+            args=(run, stop_event, logs),
             daemon=True
         )
-        self.capture_thread.start()
+        with self.lock:
+            self.log_streams[run.run_id] = {
+                'process': run.proc,
+                'stop_event': stop_event,
+                'logs': logs,
+                'capture_thread': capture_thread,
+            }
+        capture_thread.start()
 
         return StartRunResponse(run_id=run.run_id)
 
-    def _capture_logs(self, proc):
-        while not self.stop_event.is_set():
+    def _capture_logs(self, run, stop_event, logs):
+        while not stop_event.is_set():
             ready_to_read, _, _ = select.select(
-                [proc.stdout, proc.stderr],
+                [run.proc.stdout, run.proc.stderr],
                 [],
                 [],
                 self.select_timeout,
@@ -80,16 +87,13 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
                 line = stream.readline().rstrip()
                 if line:
                     with self.lock:
-                        self.logs.append(f"{line}")
+                        logs.append(f"{line}")
 
-            # Check if the subprocess has finished
-            if proc.poll() is not None:
+            if run.proc.poll() is not None:
                 log(INFO, "Subprocess finished, exiting log capture")
-                proc.stdout.close()
-                proc.stderr.close()
-                log(INFO, "Regain servicer thread")
-                self.stop_event.set()
-                self.capture_thread.join()
+                run.proc.stdout.close()
+                run.proc.stderr.close()
+                stop_event.set()
                 break
 
     def StreamLogs(
@@ -101,8 +105,11 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         last_sent_index = 0
         while context.is_active():
             with self.lock:
-                if last_sent_index < len(self.logs):
-                    for i in range(last_sent_index, len(self.logs)):
-                        yield StreamLogsResponse(log_output=self.logs[i])
-                    last_sent_index = len(self.logs)
+                if request.run_id not in self.log_streams:
+                    context.abort(grpc.StatusCode.NOT_FOUND, "Run ID not found")
+                logs = self.log_streams[request.run_id]['logs']
+                if last_sent_index < len(logs):
+                    for i in range(last_sent_index, len(logs)):
+                        yield StreamLogsResponse(log_output=logs[i])
+                    last_sent_index = len(logs)
             time.sleep(0.1)  # Sleep briefly to avoid busy waiting
