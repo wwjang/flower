@@ -14,12 +14,44 @@
 # ==============================================================================
 """Flower command line interface `log` command."""
 
+import time
+from logging import DEBUG, INFO
+
+import grpc
 import typer
 from typing_extensions import Annotated
-from logging import INFO
-import time
-import grpc
 
+from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
+from flwr.common.logger import log as logger
+from flwr.proto.exec_pb2 import StreamLogsRequest
+from flwr.proto.exec_pb2_grpc import ExecStub
+
+
+def stream_logs(run_id: int, channel: grpc.Channel, duration: int) -> None:
+    """Stream logs from the beginning of a run with connection refresh."""
+    start_time = time.time()
+    stub = ExecStub(channel)
+    req = StreamLogsRequest(run_id=run_id)
+
+    for res in stub.StreamLogs(req):
+        print(res.log_output)
+        if time.time() - start_time > duration:
+            break
+
+def print_logs(run_id: int, channel: grpc.Channel, timeout: int) -> None:
+    """Print logs from the beginning of a run."""
+    stub = ExecStub(channel)
+    req = StreamLogsRequest(run_id=run_id)
+
+    while True:
+        try:
+            # Enforce timeout for graceful exit
+            for res in stub.StreamLogs(req, timeout=timeout):
+                print(res.log_output)
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+                channel.close()
+                break
 
 def log(
     run_id: Annotated[
@@ -39,42 +71,11 @@ def log(
     ] = True,
 ) -> None:
     """Get logs from Flower run."""
-    from logging import DEBUG
-
-    from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
-    from flwr.common.logger import log
-    from flwr.proto.exec_pb2 import StreamLogsRequest
-    from flwr.proto.exec_pb2_grpc import ExecStub
 
     def on_channel_state_change(channel_connectivity: str) -> None:
         """Log channel connectivity."""
-        log(DEBUG, channel_connectivity)
+        logger(DEBUG, channel_connectivity)
 
-    def stream_logs(run_id, channel, duration):
-        """Stream logs from the beginning of a run with connection refresh."""
-        start_time = time.time()
-        stub = ExecStub(channel)
-        req = StreamLogsRequest(run_id=run_id)
-
-        for res in stub.StreamLogs(req):
-            print(res.log_output)
-            if time.time() - start_time > duration:
-                break
-
-    def print_logs(run_id, channel, timeout):
-        """Print logs from the beginning of a run."""
-        stub = ExecStub(channel)
-        req = StreamLogsRequest(run_id=run_id)
-
-        while True:
-            try:
-                # Enforce timeout for graceful exit
-                for res in stub.StreamLogs(req, timeout=timeout):
-                    print(res.log_output)
-            except grpc.RpcError as e:
-                if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-                    channel.close()
-                    break
 
     channel = create_channel(
         server_address="127.0.0.1:9093",
@@ -88,12 +89,12 @@ def log(
     if follow:
         try:
             while True:
-                log(INFO, f"Streaming logs")
+                logger(INFO, "Streaming logs")
                 stream_logs(run_id, channel, period)
                 time.sleep(2)
-                log(INFO, "Reconnecting to logstream")
+                logger(INFO, "Reconnecting to logstream")
         except KeyboardInterrupt:
-            log(INFO, "Exiting logstream")
+            logger(INFO, "Exiting logstream")
             channel.close()
     else:
         print_logs(run_id, channel, timeout=1)

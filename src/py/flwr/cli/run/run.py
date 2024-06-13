@@ -16,10 +16,11 @@
 
 from enum import Enum
 import sys
-from logging import DEBUG
+from logging import DEBUG, INFO
 from pathlib import Path
 from typing import Optional
 
+import time
 import typer
 from typing_extensions import Annotated
 
@@ -34,6 +35,7 @@ from flwr.proto.exec_pb2 import (
 from flwr.proto.exec_pb2_grpc import ExecStub
 from flwr.simulation.run_simulation import _run_simulation
 
+from ..log import stream_logs
 
 class Engine(str, Enum):
     """Enum defining the engine to run on."""
@@ -63,10 +65,17 @@ def run(
             case_sensitive=False, help="Use this flag to use the new SuperExec API"
         ),
     ] = None,
+    period: Annotated[
+        int,
+        typer.Option(
+            case_sensitive=False,
+            help="Use this to set connection refresh time period (in seconds)",
+        ),
+    ] = 60,
     follow: Annotated[
         bool,
-        typer.Option(case_sensitive=False, help="Use this flag to stream logs"),
-    ] = False,
+        typer.Option(case_sensitive=False, help="Use this flag to follow logstream"),
+    ] = True,
 ) -> None:
     """Run Flower project."""
     if use_superexec:
@@ -108,9 +117,15 @@ def run(
         res = stub.StartRun(req)
         print(f'RUN ID: {res.run_id}')
         if follow:
-            req = StreamLogsRequest(run_id=res.run_id)
-            for res in stub.FetchLogs(req):
-                print(res.log_output)
+            try:
+                while True:
+                    log(INFO, "Streaming logs")
+                    stream_logs(res.run_id, channel, period)
+                    time.sleep(2)
+                    log(INFO, "Reconnecting to logstream")
+            except KeyboardInterrupt:
+                log(INFO, "Exiting logstream")
+                channel.close()
     else:
         typer.secho("Loading project configuration... ", fg=typer.colors.BLUE)
 
