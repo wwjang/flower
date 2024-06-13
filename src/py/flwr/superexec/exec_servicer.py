@@ -16,8 +16,9 @@
 
 
 from logging import INFO, DEBUG
+from dataclasses import dataclass
 from subprocess import Popen
-from typing import Dict, Generator, Any
+from typing import Dict, Generator, Any, List
 
 import threading
 import grpc
@@ -36,6 +37,15 @@ from flwr.proto.exec_pb2 import (  # pylint: disable=E0611
 from .executor import Executor
 
 
+@dataclass
+class LogStream:
+    """Represents a logstream for a `run_id`"""
+
+    process: Popen
+    stop_event: threading.Event
+    logs: List[str]
+    capture_thread: threading.Thread
+
 class ExecServicer(exec_pb2_grpc.ExecServicer):
     """Driver API servicer."""
 
@@ -46,7 +56,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         self.lock = threading.Lock()
 
         self.select_timeout: int = 1
-        self.log_streams = {}
+        self.log_streams: Dict[int, LogStream] = {}
 
     def StartRun(
         self, request: StartRunRequest, context: grpc.ServicerContext
@@ -57,7 +67,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         self.runs[run.run_id] = run.proc
 
         stop_event = threading.Event()
-        logs = []
+        logs: List[str] = []
         # Start a background thread to capture the log output
         capture_thread = threading.Thread(
             target=self._capture_logs,
@@ -65,12 +75,12 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
             daemon=True
         )
         with self.lock:
-            self.log_streams[run.run_id] = {
-                'process': run.proc,
-                'stop_event': stop_event,
-                'logs': logs,
-                'capture_thread': capture_thread,
-            }
+            self.log_streams[run.run_id] = LogStream(
+                process=run.proc,
+                stop_event=stop_event,
+                logs=logs,
+                capture_thread=capture_thread,
+            )
         capture_thread.start()
 
         return StartRunResponse(run_id=run.run_id)
@@ -107,7 +117,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
             with self.lock:
                 if request.run_id not in self.log_streams:
                     context.abort(grpc.StatusCode.NOT_FOUND, "Run ID not found")
-                logs = self.log_streams[request.run_id]['logs']
+                logs = self.log_streams[request.run_id].logs
                 if last_sent_index < len(logs):
                     for i in range(last_sent_index, len(logs)):
                         yield StreamLogsResponse(log_output=logs[i])
