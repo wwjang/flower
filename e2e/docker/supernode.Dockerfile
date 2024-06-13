@@ -1,4 +1,4 @@
-FROM flwr/supernode:nightly
+FROM flwr/supernode:1.9.0
 
 WORKDIR /app
 COPY pyproject.toml ./
