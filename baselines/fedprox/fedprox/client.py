@@ -12,6 +12,7 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from fedprox.models import test, train
+from fedprox.dataset import load_datasets
 
 
 # pylint: disable=too-many-arguments
@@ -105,8 +106,10 @@ def gen_client_fn(
     num_clients: int,
     num_rounds: int,
     num_epochs: int,
-    trainloaders: List[DataLoader],
-    valloaders: List[DataLoader],
+    dataset_config: DictConfig,
+    batch_size: int,
+    # trainloaders: List[DataLoader],
+    # valloaders: List[DataLoader],
     learning_rate: float,
     stragglers: float,
     model: DictConfig,
@@ -123,6 +126,10 @@ def gen_client_fn(
     num_epochs : int
         The number of local epochs each client should run the training for before
         sending it to the server.
+    dataset_config : DictConfig
+        The dataset config
+    batch_size : int
+        Batch size
     trainloaders: List[DataLoader]
         A list of DataLoaders, each pointing to the dataset training partition
         belonging to a particular client.
@@ -156,8 +163,14 @@ def gen_client_fn(
 
         # Note: each client gets a different trainloader/valloader, so each client
         # will train and evaluate on their own unique data
-        trainloader = trainloaders[int(cid)]
-        valloader = valloaders[int(cid)]
+        trainloader, valloader = load_datasets(
+            config=dataset_config,
+            num_clients=num_clients,
+            batch_size=batch_size,
+            partition_id=int(cid)
+        )
+        # trainloader = trainloaders[int(cid)]
+        # valloader = valloaders[int(cid)]
 
         return FlowerClient(
             net,

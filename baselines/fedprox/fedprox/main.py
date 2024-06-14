@@ -28,7 +28,8 @@ def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
 
     # partition dataset and get dataloaders
-    trainloaders, valloaders, testloader = load_datasets(
+    # trainloaders, valloaders, testloader = load_datasets(
+    _, _, testloader = load_datasets(
         config=cfg.dataset_config,
         num_clients=cfg.num_clients,
         batch_size=cfg.batch_size,
@@ -38,8 +39,10 @@ def main(cfg: DictConfig) -> None:
     client_fn = client.gen_client_fn(
         num_clients=cfg.num_clients,
         num_epochs=cfg.num_epochs,
-        trainloaders=trainloaders,
-        valloaders=valloaders,
+        dataset_config=cfg.dataset_config,
+        batch_size=cfg.batch_size,
+        # trainloaders=trainloaders,
+        # valloaders=valloaders,
         num_rounds=cfg.num_rounds,
         learning_rate=cfg.learning_rate,
         stragglers=cfg.stragglers_fraction,
