@@ -26,8 +26,6 @@ import grpc
 from flwr.common.logger import log
 from flwr.proto import exec_pb2_grpc  # pylint: disable=E0611
 from flwr.proto.exec_pb2 import (  # pylint: disable=E0611
-    FetchLogsRequest,
-    FetchLogsResponse,
     StartRunRequest,
     StartRunResponse,
     StreamLogsRequest,
