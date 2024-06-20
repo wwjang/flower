@@ -19,8 +19,7 @@ import select
 import threading
 import time
 from logging import ERROR, INFO
-from subprocess import Popen
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator
 
 import grpc
 
@@ -31,6 +30,8 @@ from flwr.proto.exec_pb2 import (  # pylint: disable=E0611
     FetchLogsResponse,
     StartRunRequest,
     StartRunResponse,
+    StreamLogsRequest,
+    StreamLogsResponse,
 )
 
 from .executor import Executor, RunTracker
@@ -63,30 +64,11 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
 
         return StartRunResponse(run_id=run.run_id)
 
-    def _capture_logs(self, proc: Popen) -> None:  # type: ignore
-        select_timeout = 1.0
-
-        def run() -> None:
-            while True:
-                reads, _, _ = select.select([proc.stderr], [], [], select_timeout)
-                if reads and proc.stderr:
-                    line = proc.stderr.readline()
-                    if line:
-                        self.logs.append(line.rstrip())
-
-        threading.Thread(target=run, daemon=True).start()
-
-    def FetchLogs(
-        self, request: FetchLogsRequest, context: grpc.ServicerContext
-    ) -> Generator[FetchLogsResponse, Any, None]:
+    def StreamLogs(
+        self, request: StreamLogsRequest, context: grpc.ServicerContext
+    ) -> Generator[StreamLogsResponse, Any, None]:
         """Get logs."""
-        log(INFO, "ExecServicer.FetchLogs")
-
-        last_sent_index = 0
+        logs = ["a", "b", "c"]
         while context.is_active():
-            with self.lock:
-                if last_sent_index < len(self.logs):
-                    for i in range(last_sent_index, len(self.logs)):
-                        yield FetchLogsResponse(log_output=self.logs[i])
-                    last_sent_index = len(self.logs)
-            time.sleep(0.1)  # Sleep briefly to avoid busy waiting
+            for i in range(len(logs)):  # pylint: disable=C0200
+                yield StreamLogsResponse(log_output=logs[i])

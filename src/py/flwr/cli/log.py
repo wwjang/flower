@@ -14,15 +14,29 @@
 # ==============================================================================
 """Flower command line interface `log` command."""
 
-from logging import DEBUG
+import sys
+import time
+from logging import DEBUG, ERROR, INFO
+from typing import Optional
 
+import grpc
 import typer
 from typing_extensions import Annotated
 
+from flwr.cli import config_utils
+from flwr.common.config import get_flwr_dir
 from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
-from flwr.common.logger import log as flwr_log
-from flwr.proto.exec_pb2 import FetchLogsRequest  # pylint: disable=E0611
-from flwr.proto.exec_pb2_grpc import ExecStub
+from flwr.common.logger import log as logger
+
+
+# pylint: disable=unused-argument
+def stream_logs(run_id: int, channel: grpc.Channel, period: int) -> None:
+    """Stream logs from the beginning of a run with connection refresh."""
+
+
+# pylint: disable=unused-argument
+def print_logs(run_id: int, channel: grpc.Channel, timeout: int) -> None:
+    """Print logs from the beginning of a run."""
 
 
 def log(
@@ -30,6 +44,17 @@ def log(
         int,
         typer.Option(case_sensitive=False, help="The Flower run ID to query"),
     ],
+    superexec_address: Annotated[
+        Optional[str],
+        typer.Option(case_sensitive=False, help="The address of the SuperExec server"),
+    ] = None,
+    period: Annotated[
+        int,
+        typer.Option(
+            case_sensitive=False,
+            help="Use this to set connection refresh time period (in seconds)",
+        ),
+    ] = 60,
     follow: Annotated[
         bool,
         typer.Option(case_sensitive=False, help="Use this flag to follow logstream"),
@@ -39,22 +64,48 @@ def log(
 
     def on_channel_state_change(channel_connectivity: str) -> None:
         """Log channel connectivity."""
-        flwr_log(DEBUG, channel_connectivity)
+        logger(DEBUG, channel_connectivity)
+
+    if superexec_address is None:
+        global_config = config_utils.load(get_flwr_dir() / "config.toml")
+        if global_config:
+            superexec_address = global_config["federation"]["default"]
+        else:
+            typer.secho(
+                "No SuperExec address was provided and no global config was found.",
+                fg=typer.colors.RED,
+                bold=True,
+            )
+            sys.exit()
+
+    assert superexec_address is not None
 
     channel = create_channel(
-        server_address="127.0.0.1:9093",
+        server_address=superexec_address,
         insecure=True,
         root_certificates=None,
         max_message_length=GRPC_MAX_MESSAGE_LENGTH,
         interceptors=None,
     )
     channel.subscribe(on_channel_state_change)
-    stub = ExecStub(channel)
 
-    req = FetchLogsRequest(run_id=run_id)
-
-    for res in stub.FetchLogs(req):
-        print(res.log_output)
-        if follow:
-            continue
-        break
+    if follow:
+        try:
+            while True:
+                logger(INFO, "Starting logstream for run_id `%s`", run_id)
+                stream_logs(run_id, channel, period)
+                time.sleep(2)
+                logger(INFO, "Reconnecting to logstream")
+        except KeyboardInterrupt:
+            logger(INFO, "Exiting logstream")
+        except grpc.RpcError as e:
+            # pylint: disable=E1101
+            if e.code() == grpc.StatusCode.NOT_FOUND:
+                logger(ERROR, "Invalid run_id `%s`, exiting", run_id)
+            if e.code() == grpc.StatusCode.CANCELLED:
+                pass
+        finally:
+            channel.close()
+    else:
+        logger(INFO, "Printing logstream for run_id `%s`", run_id)
+        print_logs(run_id, channel, timeout=5)
