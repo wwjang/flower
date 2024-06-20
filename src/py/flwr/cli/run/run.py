@@ -15,11 +15,13 @@
 """Flower command line interface `run` command."""
 
 import sys
+import time
 from enum import Enum
-from logging import DEBUG
+from logging import DEBUG, INFO
 from pathlib import Path
 from typing import Optional
 
+import grpc
 import typer
 from typing_extensions import Annotated
 
@@ -29,12 +31,11 @@ from flwr.common.config import get_flwr_dir
 from flwr.common.constant import SUPEREXEC_DEFAULT_ADDRESS
 from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
 from flwr.common.logger import log
-from flwr.proto.exec_pb2 import (  # pylint: disable=E0611
-    FetchLogsRequest,
-    StartRunRequest,
-)
+from flwr.proto.exec_pb2 import StartRunRequest  # pylint: disable=E0611
 from flwr.proto.exec_pb2_grpc import ExecStub
 from flwr.simulation.run_simulation import _run_simulation
+
+from ..log import stream_logs
 
 
 class Engine(str, Enum):
@@ -63,14 +64,21 @@ def run(
         Optional[Path],
         typer.Option(case_sensitive=False, help="Path of the FAB to run"),
     ] = None,
+    period: Annotated[
+        int,
+        typer.Option(
+            case_sensitive=False,
+            help="Use this to set connection refresh time period (in seconds)",
+        ),
+    ] = 60,
     follow: Annotated[
         bool,
         typer.Option(case_sensitive=False, help="Use this flag to stream logs"),
-    ] = False,
+    ] = True,
 ) -> None:
     """Run Flower project."""
     if use_superexec:
-        _start_superexec_run(superexec_address, app_path, follow)
+        _start_superexec_run(superexec_address, app_path, follow, period)
         return
 
     typer.secho("Loading project configuration... ", fg=typer.colors.BLUE)
@@ -124,6 +132,7 @@ def _start_superexec_run(
     superexec_address: Optional[str],
     app_path: Optional[Path],
     follow: bool,
+    period: int,
 ) -> None:
     if superexec_address is None:
         gloabl_config = config_utils.load(get_flwr_dir() / "config.toml")
@@ -157,9 +166,20 @@ def _start_superexec_run(
 
     with open(fab_path, "rb") as f:
         start_run_req = StartRunRequest(fab_file=f.read())
-    start_run_res = stub.StartRun(start_run_req)
+    res = stub.StartRun(start_run_req)
 
     if follow:
-        fetch_logs_req = FetchLogsRequest(run_id=start_run_res.run_id)
-        for res in stub.FetchLogs(fetch_logs_req):
-            print(res.log_output)
+        try:
+            while True:
+                log(INFO, "Starting logstream for run_id `%s`", res.run_id)
+                stream_logs(res.run_id, channel, period)
+                time.sleep(2)
+                log(INFO, "Reconnecting to logstream")
+        except KeyboardInterrupt:
+            log(INFO, "Exiting logstream")
+        except grpc.RpcError as e:
+            # pylint: disable=E1101
+            if e.code() == grpc.StatusCode.CANCELLED:
+                pass
+        finally:
+            channel.close()
