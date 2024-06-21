@@ -103,33 +103,50 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
 
         last_sent_index = 0
         print_once = True
+        log(
+            INFO,
+            "OUT %s: Run ID `%s`, thread ID `%s`, count: `%s`",
+            datetime.datetime.now(),
+            request.run_id,
+            threading.get_ident(),
+            threading.active_count(),
+        )
         while context.is_active():
-            with self.lock:
-                if print_once:
-                    log(
-                        INFO,
-                        "%s: Run ID `%s`, thread ID `%s`",
-                        datetime.datetime.now(),
-                        request.run_id,
-                        threading.get_ident(),
-                    )
-                    print_once = False
+            if print_once:
+                log(
+                    INFO,
+                    "IN %s: Run ID `%s`, thread ID `%s`, count: `%s`",
+                    datetime.datetime.now(),
+                    request.run_id,
+                    threading.get_ident(),
+                    threading.active_count(),
+                )
+                print_once = False
 
-                # Exit if `run_id` not found
-                if request.run_id not in self.runs:
-                    context.abort(grpc.StatusCode.NOT_FOUND, "Run ID not found")
+            # Exit if `run_id` not found
+            if request.run_id not in self.runs:
+                context.abort(grpc.StatusCode.NOT_FOUND, "Run ID not found")
 
-                # Yield n'th row of logs, if n'th row < len(logs)
-                logs = self.runs[request.run_id].logs
-                if last_sent_index < len(logs):
-                    for i in range(last_sent_index, len(logs)):
-                        yield StreamLogsResponse(log_output=logs[i])
-                    last_sent_index = len(logs)
+            # Yield n'th row of logs, if n'th row < len(logs)
+            logs = self.runs[request.run_id].logs
+            if last_sent_index < len(logs):
+                for i in range(last_sent_index, len(logs)):
+                    yield StreamLogsResponse(log_output=logs[i])
+                last_sent_index = len(logs)
 
-                # Shutdown context if process has completed. Previously stored
-                # logs will still be printed.
-                if self.runs[request.run_id].proc.poll() is not None:
-                    log(INFO, "Run ID `%s` completed", request.run_id)
-                    context.cancel()
+            # Shutdown context if process has completed. Previously stored
+            # logs will still be printed.
+            if self.runs[request.run_id].proc.poll() is not None:
+                log(INFO, "Run ID `%s` completed", request.run_id)
+                context.cancel()
 
             time.sleep(0.1)  # Sleep briefly to avoid busy waiting
+
+        log(
+            INFO,
+            "FINALLY %s: Run ID `%s`, thread ID `%s`, count: `%s`",
+            datetime.datetime.now(),
+            request.run_id,
+            threading.get_ident(),
+            threading.active_count(),
+        )
