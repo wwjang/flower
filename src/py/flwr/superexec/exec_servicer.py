@@ -85,7 +85,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
                     with self.lock:
                         run.logs.append(f"{line}")
 
-            # Close
+            # Close std* to prevent blocking
             if run.proc.poll() is not None:
                 log(INFO, "Subprocess finished, exiting log capture")
                 if run.proc.stdout:
@@ -115,7 +115,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
                     )
                     print_once = False
 
-                # Exit if run_id not found
+                # Exit if `run_id` not found
                 if request.run_id not in self.runs:
                     context.abort(grpc.StatusCode.NOT_FOUND, "Run ID not found")
 
