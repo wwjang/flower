@@ -15,6 +15,7 @@
 """SuperExec API servicer."""
 
 
+import datetime
 import select
 import threading
 import time
@@ -43,7 +44,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         self.runs: Dict[int, RunTracker] = {}
         self.lock = threading.Lock()
         self.select_timeout: int = 1
-        self.log_streams: Dict[int, LogStreamer] = {}
+        # self.log_streams: Dict[int, LogStreamer] = {}
 
     def StartRun(
         self, request: StartRunRequest, context: grpc.ServicerContext
@@ -58,19 +59,24 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
 
         self.runs[run.run_id] = run
 
-        stop_event = threading.Event()
-        logs: List[str] = []
         # Start a background thread to capture the log output
         capture_thread = threading.Thread(
-            target=self._capture_logs, args=(run, stop_event, logs), daemon=True
+            target=self._capture_logs, args=(run,), daemon=True
         )
-        with self.lock:
-            self.log_streams[run.run_id] = LogStreamer(
-                proc=run.proc,
-                stop_event=stop_event,
-                logs=logs,
-                capture_thread=capture_thread,
-            )
+
+        # stop_event = threading.Event()
+        # logs: List[str] = []
+        # Start a background thread to capture the log output
+        # capture_thread = threading.Thread(
+        #     target=self._capture_logs, args=(run, stop_event, logs), daemon=True
+        # )
+        # with self.lock:
+        #     self.log_streams[run.run_id] = LogStreamer(
+        #         proc=run.proc,
+        #         stop_event=stop_event,
+        #         logs=logs,
+        #         capture_thread=capture_thread,
+        #     )
         capture_thread.start()
 
         return StartRunResponse(run_id=run.run_id)
@@ -78,10 +84,10 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
     def _capture_logs(
         self,
         run: RunTracker,
-        stop_event: threading.Event,
-        logs: List[str],
+        # stop_event: threading.Event,
+        # logs: List[str],
     ) -> None:
-        while not stop_event.is_set():
+        while not run.stop_event.is_set():
             # Select streams only when ready to read
             ready_to_read, _, _ = select.select(
                 [run.proc.stdout, run.proc.stderr],
@@ -94,7 +100,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
                 line = stream.readline().rstrip()
                 if line:
                     with self.lock:
-                        logs.append(f"{line}")
+                        run.logs.append(f"{line}")
 
             if run.proc.poll() is not None:
                 log(INFO, "Subprocess finished, exiting log capture")
@@ -102,7 +108,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
                     run.proc.stdout.close()
                 if run.proc.stderr:
                     run.proc.stderr.close()
-                stop_event.set()
+                run.stop_event.set()
                 break
 
     def StreamLogs(  # pylint: disable=C0103
@@ -112,12 +118,23 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         log(INFO, "ExecServicer.StreamLogs")
 
         last_sent_index = 0
+        print_once = True
         while context.is_active():
             with self.lock:
+                if print_once:
+                    log(
+                        INFO,
+                        "%s: Run ID `%s`, thread ID `%s`",
+                        datetime.datetime.now(),
+                        request.run_id,
+                        threading.get_ident(),
+                    )
+                    print_once = False
                 # Exit if run_id not found
                 if request.run_id not in self.runs:
                     context.abort(grpc.StatusCode.NOT_FOUND, "Run ID not found")
-                logs = self.log_streams[request.run_id].logs
+                # logs = self.log_streams[request.run_id].logs
+                logs = self.runs[request.run_id].logs
                 # Yield n'th row of logs, if n'th row < len(logs)
                 if last_sent_index < len(logs):
                     for i in range(last_sent_index, len(logs)):

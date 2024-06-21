@@ -16,7 +16,7 @@
 
 import threading
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from subprocess import Popen
 from typing import List, Optional
 
@@ -27,6 +27,9 @@ class RunTracker:
 
     run_id: int
     proc: Popen  # type: ignore
+    stop_event: threading.Event = field(default_factory=threading.Event)
+    logs: List[str] = field(default_factory=list)
+    # capture_thread: threading.Thread = field(default_factory=threading.Thread)
 
 
 @dataclass
