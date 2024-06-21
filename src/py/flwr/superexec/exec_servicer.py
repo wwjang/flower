@@ -20,7 +20,7 @@ import select
 import threading
 import time
 from logging import ERROR, INFO
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator
 
 import grpc
 
@@ -33,7 +33,7 @@ from flwr.proto.exec_pb2 import (  # pylint: disable=E0611
     StreamLogsResponse,
 )
 
-from .executor import Executor, LogStreamer, RunTracker
+from .executor import Executor, RunTracker
 
 
 class ExecServicer(exec_pb2_grpc.ExecServicer):
@@ -44,7 +44,6 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         self.runs: Dict[int, RunTracker] = {}
         self.lock = threading.Lock()
         self.select_timeout: int = 1
-        # self.log_streams: Dict[int, LogStreamer] = {}
 
     def StartRun(
         self, request: StartRunRequest, context: grpc.ServicerContext
@@ -63,20 +62,6 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
         capture_thread = threading.Thread(
             target=self._capture_logs, args=(run,), daemon=True
         )
-
-        # stop_event = threading.Event()
-        # logs: List[str] = []
-        # Start a background thread to capture the log output
-        # capture_thread = threading.Thread(
-        #     target=self._capture_logs, args=(run, stop_event, logs), daemon=True
-        # )
-        # with self.lock:
-        #     self.log_streams[run.run_id] = LogStreamer(
-        #         proc=run.proc,
-        #         stop_event=stop_event,
-        #         logs=logs,
-        #         capture_thread=capture_thread,
-        #     )
         capture_thread.start()
 
         return StartRunResponse(run_id=run.run_id)
@@ -84,8 +69,6 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
     def _capture_logs(
         self,
         run: RunTracker,
-        # stop_event: threading.Event,
-        # logs: List[str],
     ) -> None:
         while not run.stop_event.is_set():
             # Select streams only when ready to read
@@ -102,6 +85,7 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
                     with self.lock:
                         run.logs.append(f"{line}")
 
+            # Close
             if run.proc.poll() is not None:
                 log(INFO, "Subprocess finished, exiting log capture")
                 if run.proc.stdout:
@@ -130,19 +114,22 @@ class ExecServicer(exec_pb2_grpc.ExecServicer):
                         threading.get_ident(),
                     )
                     print_once = False
+
                 # Exit if run_id not found
                 if request.run_id not in self.runs:
                     context.abort(grpc.StatusCode.NOT_FOUND, "Run ID not found")
-                # logs = self.log_streams[request.run_id].logs
-                logs = self.runs[request.run_id].logs
+
                 # Yield n'th row of logs, if n'th row < len(logs)
+                logs = self.runs[request.run_id].logs
                 if last_sent_index < len(logs):
                     for i in range(last_sent_index, len(logs)):
                         yield StreamLogsResponse(log_output=logs[i])
                     last_sent_index = len(logs)
+
                 # Shutdown context if process has completed. Previously stored
                 # logs will still be printed.
                 if self.runs[request.run_id].proc.poll() is not None:
                     log(INFO, "Run ID `%s` completed", request.run_id)
                     context.cancel()
+
             time.sleep(0.1)  # Sleep briefly to avoid busy waiting
