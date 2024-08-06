@@ -45,6 +45,7 @@ from flwr.common.logger import log, warn_deprecated_feature
 from flwr.common.object_ref import load_app, validate
 
 from ..app import _start_client_internal
+from ..process.process import _run_background_client
 
 ADDRESS_FLEET_API_GRPC_RERE = "0.0.0.0:9092"
 
@@ -127,12 +128,7 @@ def exec_client_app() -> None:
 
     args = _parse_args_exec_client_app().parse_args()
 
-    print(f"{args.address}")
-    # _run_background_client(
-    #     address=args.address,
-    #     token=args.token,
-    #     run_id=args.run_id,
-    # )
+    _run_background_client(address=args.address, token=args.token)
 
     register_exit_handlers(event_type=EventType.RUN_CLIENT_APP_LEAVE)
 
