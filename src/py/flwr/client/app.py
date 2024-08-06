@@ -202,7 +202,7 @@ def _start_client_internal(
     max_retries: Optional[int] = None,
     max_wait_time: Optional[float] = None,
     flwr_path: Optional[Path] = None,
-    exec_in_isolation: Optional[bool] = False,
+    isolate: Optional[bool] = False,
 ) -> None:
     """Start a Flower client node which connects to a Flower server.
 
@@ -250,7 +250,7 @@ def _start_client_internal(
         If set to None, there is no limit to the total time.
     flwr_path: Optional[Path] (default: None)
         The fully resolved path containing installed Flower Apps.
-    exec_in_isolation: Optional[bool] (default: False)
+    isolate: Optional[bool] (default: False)
         When True, runs the ClientApp in an isolated process. The ClientApp
         and SuperNode communicates using gRPC. When False, runs the ClientApp
         in the same process as the SuperNode.
@@ -433,7 +433,7 @@ def _start_client_internal(
                     # Handle app loading and task message
                     try:
                         run: Run = runs[run_id]
-                        if exec_in_isolation:
+                        if isolate:
                             # Generate SuperNode token
                             token = generate_rand_int_from_bytes(RUN_ID_NUM_BYTES)
 
@@ -450,6 +450,7 @@ def _start_client_internal(
                             verbose = True
                             command = [
                                 "exec-client-app",
+                                "--",
                                 "--address",
                                 ADDRESS_CLIENTAPPIO_API_GRPC_RERE,
                                 "--token",

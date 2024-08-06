@@ -74,7 +74,7 @@ def run_supernode() -> None:
         max_wait_time=args.max_wait_time,
         node_config=parse_config_args([args.node_config]),
         flwr_path=get_flwr_dir(args.flwr_dir),
-        exec_in_isolation=args.exec_in_isolation,
+        isolate=args.isolate,
     )
 
     # Graceful shutdown
@@ -285,7 +285,7 @@ def _parse_args_run_supernode() -> argparse.ArgumentParser:
     """,
     )
     parser.add_argument(
-        "--exec-in-isolation",
+        "--isolate",
         action="store_true",
         help="Run the ClientApp in an isolated process from the SuperNode."
         "In this mode, the ClientApp and SuperNode communicate via gRPC."
