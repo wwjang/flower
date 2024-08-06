@@ -20,7 +20,8 @@ import grpc
 
 # from flwr.cli.install import install_from_fab
 from flwr.client.client_app import ClientApp
-from flwr.client.supernode.app import _get_load_client_app_fn
+
+# from flwr.client.supernode.app import _get_load_client_app_fn
 from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
 from flwr.common.logger import log
 from flwr.common.typing import Run
@@ -32,6 +33,7 @@ from flwr.proto.appio_pb2_grpc import ClientAppIoStub, add_ClientAppIoServicer_t
 from flwr.server.superlink.fleet.grpc_bidi.grpc_server import generic_create_grpc_server
 
 from .clientappio_servicer import ClientAppIoServicer
+from .utils import _get_load_client_app_fn
 
 
 def _run_background_client(
