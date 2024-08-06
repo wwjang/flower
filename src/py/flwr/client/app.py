@@ -441,7 +441,7 @@ def _start_client_internal(
                             clientappio_servicer.set_object(
                                 message=message,
                                 context=context,
-                                fab=None,
+                                # fab=None,
                                 run=run,
                                 token=token,
                             )
