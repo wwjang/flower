@@ -34,7 +34,7 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
     def __init__(self) -> None:
         self.message: Message = None
         self.context: Context = None
-        self.fab = None
+        # self.fab = None
         self.run: Run = None
         self.token: int = None
 
@@ -45,7 +45,7 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         return PullClientAppInputsResponse(
             message=self.message,
             context=self.context,
-            fab=self.fab,
+            # fab=self.fab,
             run=self.run,
         )
 
@@ -63,12 +63,12 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         return PushClientAppOutputsResponse(status=status)
 
     def set_object(  # pylint: disable=R0913
-        self, message: Message, context: Context, fab, run: Run, token: int
+        self, message: Message, context: Context, run: Run, token: int
     ) -> None:
         """Set client app objects."""
         self.message = message
         self.context = context
-        self.fab = fab
+        # self.fab = fab
         self.run = run
         self.token = token
 
