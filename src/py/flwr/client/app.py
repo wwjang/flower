@@ -196,6 +196,7 @@ def _start_client_internal(
     max_retries: Optional[int] = None,
     max_wait_time: Optional[float] = None,
     flwr_path: Optional[Path] = None,
+    exec_in_isolation: Optional[bool] = False,
 ) -> None:
     """Start a Flower client node which connects to a Flower server.
 
@@ -243,6 +244,10 @@ def _start_client_internal(
         If set to None, there is no limit to the total time.
     flwr_path: Optional[Path] (default: None)
         The fully resolved path containing installed Flower Apps.
+    exec_in_isolation: Optional[bool] (default: False)
+        When True, runs the ClientApp in an isolated process. The ClientApp
+        and SuperNode communicates using gRPC. When False, runs the ClientApp
+        in the same process as the SuperNode.
     """
     if insecure is None:
         insecure = root_certificates is None
@@ -416,14 +421,17 @@ def _start_client_internal(
 
                     # Handle app loading and task message
                     try:
-                        # Load ClientApp instance
-                        run: Run = runs[run_id]
-                        client_app: ClientApp = load_client_app_fn(
-                            run.fab_id, run.fab_version
-                        )
+                        if exec_in_isolation:
+                            pass
+                        else:
+                            # Load ClientApp instance
+                            run: Run = runs[run_id]
+                            client_app: ClientApp = load_client_app_fn(
+                                run.fab_id, run.fab_version
+                            )
 
-                        # Execute ClientApp
-                        reply_message = client_app(message=message, context=context)
+                            # Execute ClientApp
+                            reply_message = client_app(message=message, context=context)
                     except Exception as ex:  # pylint: disable=broad-exception-caught
 
                         # Legacy grpc-bidi

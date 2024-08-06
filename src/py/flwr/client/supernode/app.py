@@ -80,6 +80,7 @@ def run_supernode() -> None:
         max_wait_time=args.max_wait_time,
         node_config=parse_config_args([args.node_config]),
         flwr_path=get_flwr_dir(args.flwr_dir),
+        exec_in_isolation=args.exec_in_isolation,
     )
 
     # Graceful shutdown
@@ -288,6 +289,13 @@ def _parse_args_run_supernode() -> argparse.ArgumentParser:
         - `$XDG_DATA_HOME/.flwr/` if `$XDG_DATA_HOME` is defined
         - `$HOME/.flwr/` in all other cases
     """,
+    )
+    parser.add_argument(
+        "--exec_in_isolation",
+        action="store_true",
+        help="Run the ClientApp in an isolated process from the SuperNode."
+        "In this mode, the ClientApp and SuperNode communicate via gRPC."
+        "By default, both SuperNode and ClientApp run in the same process.",
     )
 
     return parser
