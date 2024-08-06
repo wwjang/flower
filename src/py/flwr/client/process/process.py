@@ -23,13 +23,19 @@ from flwr.client.client_app import ClientApp
 from flwr.client.supernode.app import _get_load_client_app_fn
 from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
 from flwr.common.logger import log
+from flwr.proto.appio_pb2 import (  # pylint: disable=E0611
+    PullClientAppInputsRequest,
+    PushClientAppOutputsRequest,
+)
+from flwr.proto.appio_pb2_grpc import ClientAppIoStub, add_ClientAppIoServicer_to_server
+from flwr.server.superlink.fleet.grpc_bidi.grpc_server import generic_create_grpc_server
 
-from .clientappio_servicer import PullClie
+from .clientappio_servicer import ClientAppIoServicer
 
 
 def _run_background_client(
     address: str,
-    token: str,
+    token: int,
 ) -> None:
     """Run background Flower ClientApp process."""
 
@@ -69,7 +75,7 @@ def _run_background_client(
             message=res.message, context=res.context
         )
 
-        req = PushClientAppOutputsRequests(
+        req = PushClientAppOutputsRequest(
             token=token,
             message=reply_message,
             context=reply_context,
@@ -85,12 +91,15 @@ def _run_background_client(
 
 def run_clientappio_api_grpc(
     address: str = "0.0.0.0:9094",
-):
+) -> tuple[grpc.Server, grpc.Server]:
     """Run ClientAppIo API (gRPC-rere)."""
     clientappio_servicer: grpc.Server = ClientAppIoServicer()
     clientappio_add_servicer_to_server_fn = add_ClientAppIoServicer_to_server
     clientappio_grpc_server = generic_create_grpc_server(
-        server_and_add_fn=(clientappio_servicer, clientappio_add_servicer_to_server_fn),
+        servicer_and_add_fn=(
+            clientappio_servicer,
+            clientappio_add_servicer_to_server_fn,
+        ),
         server_address=address,
         max_message_length=GRPC_MAX_MESSAGE_LENGTH,
     )
