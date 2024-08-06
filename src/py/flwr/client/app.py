@@ -15,6 +15,7 @@
 """Flower client app."""
 
 import signal
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -32,6 +33,7 @@ from flwr.common import GRPC_MAX_MESSAGE_LENGTH, Context, EventType, Message, ev
 from flwr.common.address import parse_address
 from flwr.common.constant import (
     MISSING_EXTRA_REST,
+    RUN_ID_NUM_BYTES,
     TRANSPORT_TYPE_GRPC_ADAPTER,
     TRANSPORT_TYPE_GRPC_BIDI,
     TRANSPORT_TYPE_GRPC_RERE,
@@ -43,6 +45,7 @@ from flwr.common.logger import log, warn_deprecated_feature
 from flwr.common.message import Error
 from flwr.common.retry_invoker import RetryInvoker, RetryState, exponential
 from flwr.common.typing import Run, UserConfig
+from flwr.server.superlink.state.utils import generate_rand_int_from_bytes
 
 from .grpc_adapter_client.connection import grpc_adapter
 from .grpc_client.connection import grpc_connection
@@ -50,6 +53,9 @@ from .grpc_rere_client.connection import grpc_request_response
 from .message_handler.message_handler import handle_control_message
 from .node_state import NodeState
 from .numpy_client import NumPyClient
+from .process.process import run_clientappio_api_grpc
+
+ADDRESS_CLIENTAPPIO_API_GRPC_RERE = "0.0.0.0:9094"
 
 
 def _check_actionable_client(
@@ -273,6 +279,11 @@ def _start_client_internal(
 
         load_client_app_fn = _load_client_app
 
+    # Start gRPC server
+    clientappio_servicer, _ = run_clientappio_api_grpc(
+        address=ADDRESS_CLIENTAPPIO_API_GRPC_RERE
+    )
+
     # At this point, only `load_client_app_fn` should be used
     # Both `client` and `client_fn` must not be used directly
 
@@ -421,11 +432,38 @@ def _start_client_internal(
 
                     # Handle app loading and task message
                     try:
+                        run: Run = runs[run_id]
                         if exec_in_isolation:
-                            pass
+                            # Generate SuperNode token
+                            token = generate_rand_int_from_bytes(RUN_ID_NUM_BYTES)
+
+                            # Share Message and Context with servicer
+                            clientappio_servicer.set_object(
+                                message=message,
+                                context=context,
+                                fab=None,
+                                run=run,
+                                token=token,
+                            )
+
+                            # Run ClientApp
+                            verbose = True
+                            command = [
+                                "exec-client-app",
+                                "--address",
+                                ADDRESS_CLIENTAPPIO_API_GRPC_RERE,
+                                "--token",
+                                token,
+                            ]
+                            subprocess.run(
+                                command,
+                                stdout=None if verbose else subprocess.DEVNULL,
+                                stderr=None if verbose else subprocess.DEVNULL,
+                                check=True,
+                            )
+                            reply_message, context = clientappio_servicer.get_object()
                         else:
                             # Load ClientApp instance
-                            run: Run = runs[run_id]
                             client_app: ClientApp = load_client_app_fn(
                                 run.fab_id, run.fab_version
                             )
