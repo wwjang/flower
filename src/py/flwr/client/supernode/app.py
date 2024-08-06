@@ -285,7 +285,7 @@ def _parse_args_run_supernode() -> argparse.ArgumentParser:
     """,
     )
     parser.add_argument(
-        "--exec_in_isolation",
+        "--exec-in-isolation",
         action="store_true",
         help="Run the ClientApp in an isolated process from the SuperNode."
         "In this mode, the ClientApp and SuperNode communicate via gRPC."
