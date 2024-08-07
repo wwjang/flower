@@ -33,15 +33,9 @@ from flwr.proto.recordset_pb2 import ParametersRecord as ProtoParametersRecord
 from flwr.proto.recordset_pb2 import RecordSet as ProtoRecordSet
 from flwr.proto.recordset_pb2 import Sint64List, StringList
 from flwr.proto.task_pb2 import Task, TaskIns, TaskRes
-from flwr.proto.transport_pb2 import (
-    ClientMessage,
-    Code,
-    Parameters,
-    Reason,
-    Scalar,
-    ServerMessage,
-    Status,
-)
+from flwr.proto.transport_pb2 import ClientMessage, Code
+from flwr.proto.transport_pb2 import Metadata as ProtoMetadata
+from flwr.proto.transport_pb2 import Parameters, Reason, Scalar, ServerMessage, Status
 
 # pylint: enable=E0611
 from . import Array, ConfigsRecord, MetricsRecord, ParametersRecord, RecordSet, typing
@@ -716,3 +710,36 @@ def user_config_value_from_proto(scalar_msg: Scalar) -> typing.UserConfigValue:
     scalar_field = scalar_msg.WhichOneof("scalar")
     scalar = getattr(scalar_msg, cast(str, scalar_field))
     return cast(typing.UserConfigValue, scalar)
+
+
+# === Metadata messages ===
+
+
+def metadata_to_proto(metadata: Metadata) -> ProtoMetadata:
+    """Serialize `Metadata` to ProtoBuf."""
+    proto = ProtoMetadata(  # pylint: disable=E1101
+        run_id=metadata.run_id,
+        message_id=metadata.message_id,
+        src_node_id=metadata.src_node_id,
+        dst_node_id=metadata.dst_node_id,
+        reply_to_message=metadata.reply_to_message,
+        group_id=metadata.group_id,
+        ttl=metadata.ttl,
+        message_type=metadata.message_type,
+    )
+    return proto
+
+
+def metadata_from_proto(metadata_proto: ProtoMetadata) -> Metadata:
+    """Deserialize `Metadata` from ProtoBuf."""
+    metadata = Metadata(
+        run_id=metadata_proto.run_id,
+        message_id=metadata_proto.message_id,
+        src_node_id=metadata_proto.src_node_id,
+        dst_node_id=metadata_proto.dst_node_id,
+        reply_to_message=metadata_proto.reply_to_message,
+        group_id=metadata_proto.group_id,
+        ttl=metadata_proto.ttl,
+        message_type=metadata_proto.message_type,
+    )
+    return metadata

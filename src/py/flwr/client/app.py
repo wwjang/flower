@@ -15,6 +15,7 @@
 """Flower client app."""
 
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -55,7 +56,24 @@ from .node_state import NodeState
 from .numpy_client import NumPyClient
 from .process.process import run_clientappio_api_grpc
 
-ADDRESS_CLIENTAPPIO_API_GRPC_RERE = "0.0.0.0:9094"
+CLIENTAPPIO_PORT = 9094
+ADDRESS_CLIENTAPPIO_API_GRPC_RERE = "0.0.0.0"
+
+
+def find_free_port(start_port):
+    port = start_port
+    while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("", port))
+                s.close()
+                return port
+            except OSError:
+                port += 1
+
+
+CLIENTAPPIO_PORT_FREE = find_free_port(CLIENTAPPIO_PORT)
+ADDRESS_CLIENTAPPIO_API_GRPC_RERE += f":{CLIENTAPPIO_PORT_FREE}"
 
 
 def _check_actionable_client(
@@ -426,9 +444,9 @@ def _start_client_internal(
 
                     # Create an error reply message that will never be used to prevent
                     # the used-before-assignment linting error
-                    reply_message = message.create_error_reply(
-                        error=Error(code=ErrorCode.UNKNOWN, reason="Unknown")
-                    )
+                    # reply_message = message.create_error_reply(
+                    #     error=Error(code=ErrorCode.UNKNOWN, reason="Unknown")
+                    # )
 
                     # Handle app loading and task message
                     try:
@@ -445,12 +463,10 @@ def _start_client_internal(
                                 run=run,
                                 token=token,
                             )
-
                             # Run ClientApp
                             verbose = True
                             command = [
                                 "exec-client-app",
-                                "--",
                                 "--address",
                                 ADDRESS_CLIENTAPPIO_API_GRPC_RERE,
                                 "--token",

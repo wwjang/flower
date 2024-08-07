@@ -24,6 +24,7 @@ from flwr.client.client_app import ClientApp
 # from flwr.client.supernode.app import _get_load_client_app_fn
 from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
 from flwr.common.logger import log
+from flwr.common.serde import user_config_from_proto
 from flwr.common.typing import Run
 from flwr.proto.appio_pb2 import (  # pylint: disable=E0611
     PullClientAppInputsRequest,
@@ -56,21 +57,29 @@ def _run_background_client(
         stub = ClientAppIoStub(channel)
 
         req = PullClientAppInputsRequest(token=token)
+        print("Z")
         res = stub.PullClientAppInputs(req)
-
+        print("Z2")
+        print(type(res.message))
         # fab_file = res.fab  # Seems unnecessary?
-        run: Run = res.run
-        # Ensures FAB is installed (default is Flower directory)
-        # install_from_fab(
-        #     fab_file, None, True
-        # )
-        load_client_app_fn = _get_load_client_app_fn(
-            default_app_ref="",
-            project_dir="",
-            multi_app=True,
-            flwr_dir=None,
+        # run: Run = res.run
+        run = Run(
+            run_id=res.run.run_id,
+            fab_id=res.run.fab_id,
+            fab_version=res.run.fab_version,
+            override_config=user_config_from_proto(res.run.override_config),
         )
-        print(f"FAB ID: {run.fab_id}, FAB version: {run.fab_version}")
+        # # Ensures FAB is installed (default is Flower directory)
+        # # install_from_fab(
+        # #     fab_file, None, True
+        # # )
+        # load_client_app_fn = _get_load_client_app_fn(
+        #     default_app_ref="",
+        #     project_dir="",
+        #     multi_app=True,
+        #     flwr_dir=None,
+        # )
+        # print(f"FAB ID: {run.fab_id}, FAB version: {run.fab_version}")
         # client_app: ClientApp = load_client_app_fn(
         #     run.fab_id, run.fab_version  # Can be optimized later
         # )

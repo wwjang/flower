@@ -17,31 +17,39 @@
 
 import grpc
 
-from flwr.common import Context, Message
-from flwr.common.typing import Code, Run, Status  # TODO: add Fab type
-from flwr.proto import appio_pb2_grpc  # pylint: disable=E0611
-from flwr.proto.appio_pb2 import (  # pylint: disable=E0611
+from flwr import common
+from flwr.common.serde import error_to_proto, recordset_to_proto, user_config_to_proto
+
+# from flwr.common import Context, Message
+# from flwr.common.typing import Code, Status  # TODO: add Fab type
+# pylint: disable=E0611
+from flwr.proto import appio_pb2_grpc
+from flwr.proto.appio_pb2 import (
     PullClientAppInputsRequest,
     PullClientAppInputsResponse,
     PushClientAppOutputsRequest,
     PushClientAppOutputsResponse,
 )
+from flwr.proto.run_pb2 import Run
+from flwr.proto.transport_pb2 import Context, Message
 
 
 class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
     """ClientAppIo API servicer."""
 
-    def __init__(self) -> None:
-        self.message: Message = None
-        self.context: Context = None
-        # self.fab = None
-        self.run: Run = None
-        self.token: int = None
+    # def __init__(self) -> None:
+    # self.message: Message = None
+    # self.context: Context = None
+    # # self.fab = None
+    # self.run: Run = None
+    # self.token: int = None
 
     def PullClientAppInputs(
         self, request: PullClientAppInputsRequest, context: grpc.ServicerContext
     ) -> PullClientAppInputsResponse:
         assert request.token == self.token
+        print("X")
+        print(type(self.run))
         return PullClientAppInputsResponse(
             message=self.message,
             context=self.context,
@@ -63,13 +71,32 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         return PushClientAppOutputsResponse(status=status)
 
     def set_object(  # pylint: disable=R0913
-        self, message: Message, context: Context, run: Run, token: int
+        self,
+        message: common.Message,
+        context: common.Context,
+        run: common.typing.Run,
+        token: int,
     ) -> None:
         """Set client app objects."""
-        self.message = message
-        self.context = context
+        self.message = Message(
+            metadata=message.metadata,
+            content=recordset_to_proto(message.content),
+            error=error_to_proto(message.error),
+        )
+        self.context = Context(
+            node_id=context.node_id,
+            node_config=user_config_to_proto(context.node_config),
+            state=recordset_to_proto(context.state),
+            run_config=user_config_to_proto(context.run_config),
+        )
         # self.fab = fab
-        self.run = run
+        self.run = Run(
+            run_id=run.run_id,
+            fab_id=run.fab_id,
+            fab_version=run.fab_version,
+            override_config=user_config_to_proto(run.override_config),
+            fab_hash="",
+        )
         self.token = token
 
     def get_object(self) -> tuple[Message, Context]:
