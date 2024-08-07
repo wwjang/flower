@@ -117,7 +117,7 @@ def run_client_app() -> None:
 
 def exec_client_app() -> None:
     """Run process-isolated Flower client app."""
-    log(INFO, "Starting Flower SuperNode")
+    log(INFO, "Starting Flower ClientApp")
 
     event(EventType.RUN_CLIENT_APP_ENTER)
 

@@ -297,10 +297,11 @@ def _start_client_internal(
 
         load_client_app_fn = _load_client_app
 
-    # Start gRPC server
-    clientappio_servicer, _ = run_clientappio_api_grpc(
-        address=ADDRESS_CLIENTAPPIO_API_GRPC_RERE
-    )
+    if isolate:
+        # Start gRPC server
+        clientappio_servicer, _ = run_clientappio_api_grpc(
+            address=ADDRESS_CLIENTAPPIO_API_GRPC_RERE
+        )
 
     # At this point, only `load_client_app_fn` should be used
     # Both `client` and `client_fn` must not be used directly
@@ -488,7 +489,9 @@ def _start_client_internal(
                             )
 
                             # Execute ClientApp
-                            reply_message = client_app(message=message, context=context)
+                            reply_message, _ = client_app(
+                                message=message, context=context
+                            )
                     except Exception as ex:  # pylint: disable=broad-exception-caught
 
                         # Legacy grpc-bidi
