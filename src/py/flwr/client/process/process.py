@@ -20,8 +20,6 @@ import grpc
 
 # from flwr.cli.install import install_from_fab
 from flwr.client.client_app import ClientApp
-
-# from flwr.client.supernode.app import _get_load_client_app_fn
 from flwr.common import Context, Message
 from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
 from flwr.common.logger import log
@@ -38,7 +36,6 @@ from flwr.common.serde import (
 from flwr.common.typing import Run
 from flwr.proto.appio_pb2 import (  # pylint: disable=E0611
     PullClientAppInputsRequest,
-    PullClientAppInputsResponse,
     PushClientAppOutputsRequest,
 )
 from flwr.proto.appio_pb2_grpc import ClientAppIoStub, add_ClientAppIoServicer_to_server
@@ -52,7 +49,7 @@ from .clientappio_servicer import ClientAppIoServicer
 from .utils import _get_load_client_app_fn
 
 
-def _run_background_client(
+def _run_background_client(  # pylint: disable=R0914
     address: str,
     token: int,
 ) -> None:
@@ -72,8 +69,8 @@ def _run_background_client(
         stub = ClientAppIoStub(channel)
 
         req = PullClientAppInputsRequest(token=token)
-        res: PullClientAppInputsResponse = stub.PullClientAppInputs(req)
-        # fab_file = res.fab  # Seems unnecessary?
+        res = stub.PullClientAppInputs(req)
+        # fab_file = res.fab
         run = Run(
             run_id=res.run.run_id,
             fab_id=res.run.fab_id,
@@ -111,7 +108,7 @@ def _run_background_client(
         )
         # print(f"FAB ID: {run.fab_id}, FAB version: {run.fab_version}")
         client_app: ClientApp = load_client_app_fn(
-            run.fab_id, run.fab_version  # Can be optimized later
+            run.fab_id, run.fab_version  # To be optimized later
         )
         # Execute ClientApp
         reply_message, reply_context = client_app(message=message, context=context)

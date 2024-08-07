@@ -15,9 +15,13 @@
 """ClientAppIo API servicer."""
 
 
+from logging import DEBUG, INFO
+from typing import Optional
+
 import grpc
 
 from flwr.common import Context, Message, typing
+from flwr.common.logger import log
 from flwr.common.serde import (
     error_from_proto,
     error_to_proto,
@@ -31,7 +35,6 @@ from flwr.common.serde import (
 )
 from flwr.common.typing import Run
 
-# from flwr.common.typing import Code, Status  # TODO: add Fab type
 # pylint: disable=E0611
 from flwr.proto import appio_pb2_grpc
 from flwr.proto.appio_pb2 import (
@@ -48,16 +51,18 @@ from flwr.proto.transport_pb2 import Message as ProtoMessage
 class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
     """ClientAppIo API servicer."""
 
-    # def __init__(self) -> None:
-    # self.message: Message = None
-    # self.context: Context = None
-    # # self.fab = None
-    # self.run: Run = None
-    # self.token: int = None
+    def __init__(self) -> None:
+        self.message: Optional[Message] = None
+        self.context: Optional[Context] = None
+        self.proto_message: Optional[ProtoMessage] = None
+        self.proto_context: Optional[ProtoContext] = None
+        self.proto_run: Optional[ProtoRun] = None
+        self.token: Optional[int] = None
 
     def PullClientAppInputs(
         self, request: PullClientAppInputsRequest, context: grpc.ServicerContext
     ) -> PullClientAppInputsResponse:
+        log(INFO, "ClientAppIo.PullInputs")
         assert request.token == self.token
         return PullClientAppInputsResponse(
             message=self.proto_message,
@@ -69,6 +74,7 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
     def PushClientAppOutputs(
         self, request: PushClientAppOutputsRequest, context: grpc.ServicerContext
     ) -> PushClientAppOutputsResponse:
+        log(INFO, "ClientAppIo.PushOutputs")
         assert request.token == self.token
         self.proto_message = request.message
         self.proto_context = request.context
@@ -80,7 +86,7 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         proto_status = status_to_proto(status=status)
         return PushClientAppOutputsResponse(status=proto_status)
 
-    def set_object(  # pylint: disable=R0913
+    def set_object(
         self,
         message: Message,
         context: Context,
@@ -88,6 +94,7 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         token: int,
     ) -> None:
         """Set client app objects."""
+        log(DEBUG, "ClientAppIo.SetObject")
         # Serialize Message, Context, and Run
         self.proto_message = ProtoMessage(
             metadata=metadata_to_proto(message.metadata),
@@ -112,10 +119,12 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
 
     def get_object(self) -> tuple[Message, Context]:
         """Get client app objects."""
+        log(DEBUG, "ClientAppIo.GetObject")
         return self.message, self.context
 
     def _update_object(self) -> None:
         """Update client app objects."""
+        log(DEBUG, "ClientAppIo.UpdateObject")
         # Deserialize Message and Context
         self.message = Message(
             metadata=metadata_from_proto(self.proto_message.metadata),
