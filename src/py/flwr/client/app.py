@@ -489,9 +489,7 @@ def _start_client_internal(
                             )
 
                             # Execute ClientApp
-                            reply_message, _ = client_app(
-                                message=message, context=context
-                            )
+                            reply_message = client_app(message=message, context=context)
                     except Exception as ex:  # pylint: disable=broad-exception-caught
 
                         # Legacy grpc-bidi
