@@ -14,20 +14,29 @@
 # ==============================================================================
 """Flower background ClientApp."""
 
+from email import message
 from logging import DEBUG, ERROR, INFO
 
 import grpc
+from black.output import err
 
 # from flwr.cli.install import install_from_fab
 from flwr.client.client_app import ClientApp
 
 # from flwr.client.supernode.app import _get_load_client_app_fn
+from flwr.common import Context, Message
 from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
 from flwr.common.logger import log
-from flwr.common.serde import user_config_from_proto
+from flwr.common.serde import (
+    error_from_proto,
+    metadata_from_proto,
+    recordset_from_proto,
+    user_config_from_proto,
+)
 from flwr.common.typing import Run
 from flwr.proto.appio_pb2 import (  # pylint: disable=E0611
     PullClientAppInputsRequest,
+    PullClientAppInputsResponse,
     PushClientAppOutputsRequest,
 )
 from flwr.proto.appio_pb2_grpc import ClientAppIoStub, add_ClientAppIoServicer_to_server
@@ -58,7 +67,7 @@ def _run_background_client(
 
         req = PullClientAppInputsRequest(token=token)
         print("Z")
-        res = stub.PullClientAppInputs(req)
+        res: PullClientAppInputsResponse = stub.PullClientAppInputs(req)
         print("Z2")
         print(type(res.message))
         # fab_file = res.fab  # Seems unnecessary?
@@ -69,24 +78,41 @@ def _run_background_client(
             fab_version=res.run.fab_version,
             override_config=user_config_from_proto(res.run.override_config),
         )
+        message = Message(
+            metadata=metadata_from_proto(res.message.metadata),
+            content=(
+                recordset_from_proto(res.message.content)
+                if res.message.HasField("content")
+                else None
+            ),
+            error=(
+                error_from_proto(res.message.error)
+                if res.message.HasField("error")
+                else None
+            ),
+        )
+        context = Context(
+            node_id=res.context.node_id,
+            node_config=user_config_from_proto(res.context.node_config),
+            state=recordset_from_proto(res.context.state),
+            run_config=user_config_from_proto(res.context.run_config),
+        )
         # # Ensures FAB is installed (default is Flower directory)
         # # install_from_fab(
         # #     fab_file, None, True
         # # )
-        # load_client_app_fn = _get_load_client_app_fn(
-        #     default_app_ref="",
-        #     project_dir="",
-        #     multi_app=True,
-        #     flwr_dir=None,
-        # )
+        load_client_app_fn = _get_load_client_app_fn(
+            default_app_ref="",
+            project_dir="",
+            multi_app=True,
+            flwr_dir=None,
+        )
         # print(f"FAB ID: {run.fab_id}, FAB version: {run.fab_version}")
-        # client_app: ClientApp = load_client_app_fn(
-        #     run.fab_id, run.fab_version  # Can be optimized later
-        # )
-        # # Execute ClientApp
-        # reply_message, reply_context = client_app(
-        #     message=res.message, context=res.context
-        # )
+        client_app: ClientApp = load_client_app_fn(
+            run.fab_id, run.fab_version  # Can be optimized later
+        )
+        # Execute ClientApp
+        reply_message, reply_context = client_app(message=message, context=context)
 
         # req = PushClientAppOutputsRequest(
         #     token=token,

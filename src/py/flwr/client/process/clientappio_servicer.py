@@ -18,7 +18,12 @@
 import grpc
 
 from flwr import common
-from flwr.common.serde import error_to_proto, recordset_to_proto, user_config_to_proto
+from flwr.common.serde import (
+    error_to_proto,
+    metadata_to_proto,
+    recordset_to_proto,
+    user_config_to_proto,
+)
 
 # from flwr.common import Context, Message
 # from flwr.common.typing import Code, Status  # TODO: add Fab type
@@ -79,9 +84,9 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
     ) -> None:
         """Set client app objects."""
         self.message = Message(
-            metadata=message.metadata,
+            metadata=metadata_to_proto(message.metadata),
             content=recordset_to_proto(message.content),
-            error=error_to_proto(message.error),
+            error=error_to_proto(message.error) if message.has_error() else None,
         )
         self.context = Context(
             node_id=context.node_id,

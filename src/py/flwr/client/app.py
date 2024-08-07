@@ -444,9 +444,9 @@ def _start_client_internal(
 
                     # Create an error reply message that will never be used to prevent
                     # the used-before-assignment linting error
-                    # reply_message = message.create_error_reply(
-                    #     error=Error(code=ErrorCode.UNKNOWN, reason="Unknown")
-                    # )
+                    reply_message = message.create_error_reply(
+                        error=Error(code=ErrorCode.UNKNOWN, reason="Unknown")
+                    )
 
                     # Handle app loading and task message
                     try:
