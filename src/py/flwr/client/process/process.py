@@ -74,7 +74,6 @@ def _run_background_client(
         req = PullClientAppInputsRequest(token=token)
         res: PullClientAppInputsResponse = stub.PullClientAppInputs(req)
         # fab_file = res.fab  # Seems unnecessary?
-        # run: Run = res.run
         run = Run(
             run_id=res.run.run_id,
             fab_id=res.run.fab_id,
@@ -100,10 +99,10 @@ def _run_background_client(
             state=recordset_from_proto(res.context.state),
             run_config=user_config_from_proto(res.context.run_config),
         )
-        # # Ensures FAB is installed (default is Flower directory)
-        # # install_from_fab(
-        # #     fab_file, None, True
-        # # )
+        # Ensures FAB is installed (default is Flower directory)
+        # install_from_fab(
+        #     fab_file, None, True
+        # )
         load_client_app_fn = _get_load_client_app_fn(
             default_app_ref="",
             project_dir="",
