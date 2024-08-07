@@ -435,7 +435,7 @@ def _start_client_internal(
                         run: Run = runs[run_id]
                         if isolate:
                             # Generate SuperNode token
-                            token = generate_rand_int_from_bytes(RUN_ID_NUM_BYTES)
+                            token: int = generate_rand_int_from_bytes(RUN_ID_NUM_BYTES)
 
                             # Share Message and Context with servicer
                             clientappio_servicer.set_object(
@@ -454,7 +454,7 @@ def _start_client_internal(
                                 "--address",
                                 ADDRESS_CLIENTAPPIO_API_GRPC_RERE,
                                 "--token",
-                                token,
+                                str(token),
                             ]
                             subprocess.run(
                                 command,
