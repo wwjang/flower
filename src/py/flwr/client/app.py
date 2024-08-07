@@ -479,6 +479,8 @@ def _start_client_internal(
                                 check=True,
                             )
                             reply_message, context = clientappio_servicer.get_object()
+                            assert isinstance(reply_message, Message)
+                            assert isinstance(context, Context)
                         else:
                             # Load ClientApp instance
                             client_app: ClientApp = load_client_app_fn(

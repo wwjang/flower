@@ -90,7 +90,7 @@ def handle_control_message(message: Message) -> Tuple[Optional[Message], int]:
 
 def handle_legacy_message_from_msgtype(
     client_fn: ClientFnExt, message: Message, context: Context
-) -> Message:
+) -> Tuple[Message, Context]:
     """Handle legacy message in the inner most mod."""
     client = client_fn(context)
 
@@ -142,7 +142,7 @@ def handle_legacy_message_from_msgtype(
         raise ValueError(f"Invalid message type: {message_type}")
 
     # Return Message
-    return message.create_reply(out_recordset)
+    return message.create_reply(out_recordset), client.get_context()
 
 
 def _reconnect(

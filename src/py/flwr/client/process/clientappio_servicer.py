@@ -17,13 +17,19 @@
 
 import grpc
 
-from flwr import common
+from flwr.common import Context, Message, typing
 from flwr.common.serde import (
+    error_from_proto,
     error_to_proto,
+    metadata_from_proto,
     metadata_to_proto,
+    recordset_from_proto,
     recordset_to_proto,
+    status_to_proto,
+    user_config_from_proto,
     user_config_to_proto,
 )
+from flwr.common.typing import Run
 
 # from flwr.common import Context, Message
 # from flwr.common.typing import Code, Status  # TODO: add Fab type
@@ -35,8 +41,9 @@ from flwr.proto.appio_pb2 import (
     PushClientAppOutputsRequest,
     PushClientAppOutputsResponse,
 )
-from flwr.proto.run_pb2 import Run
-from flwr.proto.transport_pb2 import Context, Message
+from flwr.proto.run_pb2 import Run as ProtoRun
+from flwr.proto.transport_pb2 import Context as ProtoContext
+from flwr.proto.transport_pb2 import Message as ProtoMessage
 
 
 class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
@@ -53,49 +60,51 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         self, request: PullClientAppInputsRequest, context: grpc.ServicerContext
     ) -> PullClientAppInputsResponse:
         assert request.token == self.token
-        print("X")
-        print(type(self.run))
         return PullClientAppInputsResponse(
-            message=self.message,
-            context=self.context,
+            message=self.proto_message,
+            context=self.proto_context,
             # fab=self.fab,
-            run=self.run,
+            run=self.proto_run,
         )
 
     def PushClientAppOutputs(
         self, request: PushClientAppOutputsRequest, context: grpc.ServicerContext
     ) -> PushClientAppOutputsResponse:
         assert request.token == self.token
+        self.proto_message = request.message
+        self.proto_context = request.context
         # Update Message and Context
-        self.message = request.message
-        self.context = request.context
-
-        code = Code.OK
-        message = "OK"
-        status = Status(code=code, message=message)
-        return PushClientAppOutputsResponse(status=status)
+        self._update_object(
+            proto_message=self.proto_message, proto_context=self.proto_context
+        )
+        # Set status
+        code = typing.Code.OK
+        status = typing.Status(code=code, message="Success")
+        proto_status = status_to_proto(status=status)
+        return PushClientAppOutputsResponse(status=proto_status)
 
     def set_object(  # pylint: disable=R0913
         self,
-        message: common.Message,
-        context: common.Context,
-        run: common.typing.Run,
+        message: Message,
+        context: Context,
+        run: Run,
         token: int,
     ) -> None:
         """Set client app objects."""
-        self.message = Message(
+        # Serialize Message, Context, and Run
+        self.proto_message = ProtoMessage(
             metadata=metadata_to_proto(message.metadata),
             content=recordset_to_proto(message.content),
             error=error_to_proto(message.error) if message.has_error() else None,
         )
-        self.context = Context(
+        self.proto_context = ProtoContext(
             node_id=context.node_id,
             node_config=user_config_to_proto(context.node_config),
             state=recordset_to_proto(context.state),
             run_config=user_config_to_proto(context.run_config),
         )
         # self.fab = fab
-        self.run = Run(
+        self.proto_run = ProtoRun(
             run_id=run.run_id,
             fab_id=run.fab_id,
             fab_version=run.fab_version,
@@ -107,3 +116,20 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
     def get_object(self) -> tuple[Message, Context]:
         """Get client app objects."""
         return self.message, self.context
+
+    def _update_object(
+        self, proto_message: ProtoMessage, proto_context: ProtoContext
+    ) -> None:
+        """Update client app objects."""
+        # Deserialize Message and Context
+        self.message = Message(
+            metadata=metadata_from_proto(proto_message.metadata),
+            content=recordset_from_proto(proto_message.content),
+            error=error_from_proto(proto_message.error),
+        )
+        self.context = Context(
+            node_id=proto_context.node_id,
+            node_config=user_config_from_proto(proto_context.node_config),
+            state=recordset_from_proto(proto_context.state),
+            run_config=user_config_from_proto(proto_context.run_config),
+        )

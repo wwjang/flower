@@ -14,11 +14,9 @@
 # ==============================================================================
 """Flower background ClientApp."""
 
-from email import message
 from logging import DEBUG, ERROR, INFO
 
 import grpc
-from black.output import err
 
 # from flwr.cli.install import install_from_fab
 from flwr.client.client_app import ClientApp
@@ -29,9 +27,13 @@ from flwr.common.grpc import GRPC_MAX_MESSAGE_LENGTH, create_channel
 from flwr.common.logger import log
 from flwr.common.serde import (
     error_from_proto,
+    error_to_proto,
     metadata_from_proto,
+    metadata_to_proto,
     recordset_from_proto,
+    recordset_to_proto,
     user_config_from_proto,
+    user_config_to_proto,
 )
 from flwr.common.typing import Run
 from flwr.proto.appio_pb2 import (  # pylint: disable=E0611
@@ -40,6 +42,10 @@ from flwr.proto.appio_pb2 import (  # pylint: disable=E0611
     PushClientAppOutputsRequest,
 )
 from flwr.proto.appio_pb2_grpc import ClientAppIoStub, add_ClientAppIoServicer_to_server
+
+# pylint: disable=E0611
+from flwr.proto.transport_pb2 import Context as ProtoContext
+from flwr.proto.transport_pb2 import Message as ProtoMessage
 from flwr.server.superlink.fleet.grpc_bidi.grpc_server import generic_create_grpc_server
 
 from .clientappio_servicer import ClientAppIoServicer
@@ -114,12 +120,27 @@ def _run_background_client(
         # Execute ClientApp
         reply_message, reply_context = client_app(message=message, context=context)
 
-        # req = PushClientAppOutputsRequest(
-        #     token=token,
-        #     message=reply_message,
-        #     context=reply_context,
-        # )
-        # res = stub.PushClientAppOutputs(req)
+        proto_message = ProtoMessage(
+            metadata=metadata_to_proto(reply_message.metadata),
+            content=recordset_to_proto(reply_message.content),
+            error=(
+                error_to_proto(reply_message.error)
+                if reply_message.has_error()
+                else None
+            ),
+        )
+        proto_context = ProtoContext(
+            node_id=reply_context.node_id,
+            node_config=user_config_to_proto(reply_context.node_config),
+            state=recordset_to_proto(reply_context.state),
+            run_config=user_config_to_proto(reply_context.run_config),
+        )
+        req = PushClientAppOutputsRequest(
+            token=token,
+            message=proto_message,
+            context=proto_context,
+        )
+        res = stub.PushClientAppOutputs(req)
     except KeyboardInterrupt:
         log(INFO, "Closing connection")
     except grpc.RpcError as e:

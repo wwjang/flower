@@ -15,7 +15,7 @@
 """Custom types for Flower clients."""
 
 
-from typing import Callable
+from typing import Callable, Optional, Tuple
 
 from flwr.common import Context, Message
 
@@ -25,5 +25,5 @@ from .client import Client as Client
 ClientFn = Callable[[str], Client]
 ClientFnExt = Callable[[Context], Client]
 
-ClientAppCallable = Callable[[Message, Context], Message]
+ClientAppCallable = Callable[[Message, Context], Tuple[Message, Optional[Context]]]
 Mod = Callable[[Message, Context, ClientAppCallable], Message]
