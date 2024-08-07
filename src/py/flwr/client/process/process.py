@@ -111,7 +111,7 @@ def _run_background_client(  # pylint: disable=R0914
             run.fab_id, run.fab_version  # To be optimized later
         )
         # Execute ClientApp
-        reply_message, reply_context = client_app(message=message, context=context)
+        reply_message = client_app(message=message, context=context)
 
         proto_message = ProtoMessage(
             metadata=metadata_to_proto(reply_message.metadata),
@@ -123,10 +123,10 @@ def _run_background_client(  # pylint: disable=R0914
             ),
         )
         proto_context = ProtoContext(
-            node_id=reply_context.node_id,
-            node_config=user_config_to_proto(reply_context.node_config),
-            state=recordset_to_proto(reply_context.state),
-            run_config=user_config_to_proto(reply_context.run_config),
+            node_id=context.node_id,
+            node_config=user_config_to_proto(context.node_config),
+            state=recordset_to_proto(context.state),
+            run_config=user_config_to_proto(context.run_config),
         )
         req = PushClientAppOutputsRequest(
             token=token,

@@ -123,10 +123,10 @@ class ClientApp:
                 message: Message,
                 context: Context,
             ) -> Message:  # pylint: disable=invalid-name
-                out_message, out_context = handle_legacy_message_from_msgtype(
+                out_message = handle_legacy_message_from_msgtype(
                     client_fn=client_fn, message=message, context=context
                 )
-                return out_message, out_context
+                return out_message
 
             # Wrap mods around the wrapped handle function
             self._call = make_ffn(ffn, mods if mods is not None else [])
