@@ -23,15 +23,12 @@ import grpc
 from flwr.common import Context, Message, typing
 from flwr.common.logger import log
 from flwr.common.serde import (
-    error_from_proto,
-    error_to_proto,
-    metadata_from_proto,
-    metadata_to_proto,
-    recordset_from_proto,
-    recordset_to_proto,
+    context_from_proto,
+    context_to_proto,
+    message_from_proto,
+    message_to_proto,
+    run_to_proto,
     status_to_proto,
-    user_config_from_proto,
-    user_config_to_proto,
 )
 from flwr.common.typing import Run
 
@@ -96,25 +93,10 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         """Set client app objects."""
         log(DEBUG, "ClientAppIo.SetObject")
         # Serialize Message, Context, and Run
-        self.proto_message = ProtoMessage(
-            metadata=metadata_to_proto(message.metadata),
-            content=recordset_to_proto(message.content),
-            error=error_to_proto(message.error) if message.has_error() else None,
-        )
-        self.proto_context = ProtoContext(
-            node_id=context.node_id,
-            node_config=user_config_to_proto(context.node_config),
-            state=recordset_to_proto(context.state),
-            run_config=user_config_to_proto(context.run_config),
-        )
+        self.proto_message = message_to_proto(message)
+        self.proto_context = context_to_proto(context)
         # self.fab = fab
-        self.proto_run = ProtoRun(
-            run_id=run.run_id,
-            fab_id=run.fab_id,
-            fab_version=run.fab_version,
-            override_config=user_config_to_proto(run.override_config),
-            fab_hash="",
-        )
+        self.proto_run = run_to_proto(run)
         self.token = token
 
     def get_object(self) -> tuple[Message, Context]:
@@ -126,22 +108,5 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         """Update client app objects."""
         log(DEBUG, "ClientAppIo.UpdateObject")
         # Deserialize Message and Context
-        self.message = Message(
-            metadata=metadata_from_proto(self.proto_message.metadata),
-            content=(
-                recordset_from_proto(self.proto_message.content)
-                if self.proto_message.HasField("content")
-                else None
-            ),
-            error=(
-                error_from_proto(self.proto_message.error)
-                if self.proto_message.HasField("error")
-                else None
-            ),
-        )
-        self.context = Context(
-            node_id=self.proto_context.node_id,
-            node_config=user_config_from_proto(self.proto_context.node_config),
-            state=recordset_from_proto(self.proto_context.state),
-            run_config=user_config_from_proto(self.proto_context.run_config),
-        )
+        self.message = message_from_proto(self.proto_message)
+        self.context = context_from_proto(self.proto_context)
