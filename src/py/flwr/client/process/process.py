@@ -72,10 +72,7 @@ def _run_background_client(
         stub = ClientAppIoStub(channel)
 
         req = PullClientAppInputsRequest(token=token)
-        print("Z")
         res: PullClientAppInputsResponse = stub.PullClientAppInputs(req)
-        print("Z2")
-        print(type(res.message))
         # fab_file = res.fab  # Seems unnecessary?
         # run: Run = res.run
         run = Run(

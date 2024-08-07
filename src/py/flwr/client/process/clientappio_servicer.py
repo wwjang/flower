@@ -31,7 +31,6 @@ from flwr.common.serde import (
 )
 from flwr.common.typing import Run
 
-# from flwr.common import Context, Message
 # from flwr.common.typing import Code, Status  # TODO: add Fab type
 # pylint: disable=E0611
 from flwr.proto import appio_pb2_grpc
@@ -74,9 +73,7 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         self.proto_message = request.message
         self.proto_context = request.context
         # Update Message and Context
-        self._update_object(
-            proto_message=self.proto_message, proto_context=self.proto_context
-        )
+        self._update_object()
         # Set status
         code = typing.Code.OK
         status = typing.Status(code=code, message="Success")
@@ -117,19 +114,25 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         """Get client app objects."""
         return self.message, self.context
 
-    def _update_object(
-        self, proto_message: ProtoMessage, proto_context: ProtoContext
-    ) -> None:
+    def _update_object(self) -> None:
         """Update client app objects."""
         # Deserialize Message and Context
         self.message = Message(
-            metadata=metadata_from_proto(proto_message.metadata),
-            content=recordset_from_proto(proto_message.content),
-            error=error_from_proto(proto_message.error),
+            metadata=metadata_from_proto(self.proto_message.metadata),
+            content=(
+                recordset_from_proto(self.proto_message.content)
+                if self.proto_message.HasField("content")
+                else None
+            ),
+            error=(
+                error_from_proto(self.proto_message.error)
+                if self.proto_message.HasField("error")
+                else None
+            ),
         )
         self.context = Context(
-            node_id=proto_context.node_id,
-            node_config=user_config_from_proto(proto_context.node_config),
-            state=recordset_from_proto(proto_context.state),
-            run_config=user_config_from_proto(proto_context.run_config),
+            node_id=self.proto_context.node_id,
+            node_config=user_config_from_proto(self.proto_context.node_config),
+            state=recordset_from_proto(self.proto_context.state),
+            run_config=user_config_from_proto(self.proto_context.run_config),
         )
