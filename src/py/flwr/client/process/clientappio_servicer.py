@@ -15,7 +15,7 @@
 """ClientAppIo API servicer."""
 
 
-from logging import DEBUG, INFO
+from logging import DEBUG
 from typing import Optional
 
 import grpc
@@ -34,7 +34,7 @@ from flwr.common.typing import Run
 
 # pylint: disable=E0611
 from flwr.proto import appio_pb2_grpc
-from flwr.proto.appio_pb2 import (
+from flwr.proto.appio_pb2 import (  # pylint: disable=E0401
     PullClientAppInputsRequest,
     PullClientAppInputsResponse,
     PushClientAppOutputsRequest,
@@ -45,6 +45,7 @@ from flwr.proto.transport_pb2 import Context as ProtoContext
 from flwr.proto.transport_pb2 import Message as ProtoMessage
 
 
+# pylint: disable=C0103,W0613
 class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
     """ClientAppIo API servicer."""
 
@@ -59,20 +60,23 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
     def PullClientAppInputs(
         self, request: PullClientAppInputsRequest, context: grpc.ServicerContext
     ) -> PullClientAppInputsResponse:
-        log(INFO, "ClientAppIo.PullInputs")
-        assert request.token == self.token
+        """Pull Message, Context, and Run."""
+        log(DEBUG, "ClientAppIo.PullInputs")
+        if request.token != self.token:
+            raise ValueError("Mismatch between ClientApp and SuperNode token")
         return PullClientAppInputsResponse(
             message=self.proto_message,
             context=self.proto_context,
-            # fab=self.fab,
             run=self.proto_run,
         )
 
     def PushClientAppOutputs(
         self, request: PushClientAppOutputsRequest, context: grpc.ServicerContext
     ) -> PushClientAppOutputsResponse:
-        log(INFO, "ClientAppIo.PushOutputs")
-        assert request.token == self.token
+        """Push Message and Context."""
+        log(DEBUG, "ClientAppIo.PushOutputs")
+        if request.token != self.token:
+            raise ValueError("Mismatch between ClientApp and SuperNode token")
         self.proto_message = request.message
         self.proto_context = request.context
         # Update Message and Context
@@ -95,7 +99,6 @@ class ClientAppIoServicer(appio_pb2_grpc.ClientAppIoServicer):
         # Serialize Message, Context, and Run
         self.proto_message = message_to_proto(message)
         self.proto_context = context_to_proto(context)
-        # self.fab = fab
         self.proto_run = run_to_proto(run)
         self.token = token
 
