@@ -61,21 +61,22 @@ def _run_background_client(  # pylint: disable=R0914
     try:
         stub = ClientAppIoStub(channel)
 
-        req = PullClientAppInputsRequest(token=token)
-        res = stub.PullClientAppInputs(req)
+        pull_req = PullClientAppInputsRequest(token=token)
+        pull_res = stub.PullClientAppInputs(pull_req)
         # fab_file = res.fab
-        run = run_from_proto(res.run)
-        message = message_from_proto(res.message)
-        context = context_from_proto(res.context)
+        run = run_from_proto(pull_res.run)
+        message = message_from_proto(pull_res.message)
+        context = context_from_proto(pull_res.context)
         # Ensures FAB is installed (default is Flower directory)
         # install_from_fab(
         #     fab_file, None, True
         # )
+        # Always load client_app from the default `flwr_dir`
         load_client_app_fn = _get_load_client_app_fn(
             default_app_ref="",
-            project_dir="",
-            multi_app=True,
+            app_path=None,
             flwr_dir=None,
+            multi_app=True,
         )
         # print(f"FAB ID: {run.fab_id}, FAB version: {run.fab_version}")
         client_app: ClientApp = load_client_app_fn(
@@ -86,12 +87,12 @@ def _run_background_client(  # pylint: disable=R0914
 
         proto_message = message_to_proto(reply_message)
         proto_context = context_to_proto(context)
-        req = PushClientAppOutputsRequest(
+        push_req = PushClientAppOutputsRequest(
             token=token,
             message=proto_message,
             context=proto_context,
         )
-        res = stub.PushClientAppOutputs(req)
+        push_res = stub.PushClientAppOutputs(push_req)
     except KeyboardInterrupt:
         log(INFO, "Closing connection")
     except grpc.RpcError as e:

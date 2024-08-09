@@ -28,7 +28,10 @@ from cryptography.hazmat.primitives.serialization import (
 )
 
 from flwr.common import EventType, event
-from flwr.common.config import get_flwr_dir, parse_config_args
+from flwr.common.config import (  # get_metadata_from_config,; get_project_config,; get_project_dir,
+    get_flwr_dir,
+    parse_config_args,
+)
 from flwr.common.constant import (
     TRANSPORT_TYPE_GRPC_ADAPTER,
     TRANSPORT_TYPE_GRPC_RERE,
@@ -55,9 +58,10 @@ def run_supernode() -> None:
     _warn_deprecated_server_arg(args)
 
     root_certificates = _get_certificates(args)
+    print("XX", args.app, args.flwr_dir)
     load_fn = _get_load_client_app_fn(
-        default_app_ref=getattr(args, "client-app"),
-        project_dir=args.dir,
+        default_app_ref="",
+        app_path=args.app,
         flwr_dir=args.flwr_dir,
         multi_app=True,
     )
@@ -96,7 +100,7 @@ def run_client_app() -> None:
     root_certificates = _get_certificates(args)
     load_fn = _get_load_client_app_fn(
         default_app_ref=getattr(args, "client-app"),
-        project_dir=args.dir,
+        app_path=args.dir,
         multi_app=False,
     )
     authentication_keys = _try_setup_client_authentication(args)
@@ -190,13 +194,15 @@ def _parse_args_run_supernode() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "client-app",
+        "app",
         nargs="?",
-        default="",
-        help="For example: `client:app` or `project.package.module:wrapper.app`. "
-        "This is optional and serves as the default ClientApp to be loaded when "
-        "the ServerApp does not specify `fab_id` and `fab_version`. "
-        "If not provided, defaults to an empty string.",
+        default=None,
+        help="Specify the path of the Flower App to load and run the `ClientApp`. "
+        "The `pyproject.toml` file must be located in the root of this path. "
+        "When this argument is provided, the SuperNode will exclusively respond to "
+        "messages from the corresponding `ServerApp` by matching the FAB ID and FAB "
+        "version. An error will be raised if a message is received from any other "
+        "`ServerApp`.",
     )
     _parse_args_common(parser)
     parser.add_argument(
@@ -232,6 +238,13 @@ def _parse_args_run_client_app() -> argparse.ArgumentParser:
         help="For example: `client:app` or `project.package.module:wrapper.app`",
     )
     _parse_args_common(parser=parser)
+    parser.add_argument(
+        "--dir",
+        default="",
+        help="Add specified directory to the PYTHONPATH and load Flower "
+        "app from there."
+        " Default: current working directory.",
+    )
 
     return parser
 
@@ -315,13 +328,6 @@ def _parse_args_common(parser: argparse.ArgumentParser) -> None:
         help="The maximum duration before the client stops trying to"
         "connect to the SuperLink in case of connection error. By default, it"
         "is set to None, meaning there is no limit to the total time.",
-    )
-    parser.add_argument(
-        "--dir",
-        default="",
-        help="Add specified directory to the PYTHONPATH and load Flower "
-        "app from there."
-        " Default: current working directory.",
     )
     parser.add_argument(
         "--auth-supernode-private-key",
