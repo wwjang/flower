@@ -467,7 +467,7 @@ def _start_client_internal(
                             # Run ClientApp
                             verbose = True
                             command = [
-                                "flower-exec-client-app",
+                                "flwr-clientapp",
                                 "--address",
                                 ADDRESS_CLIENTAPPIO_API_GRPC_RERE,
                                 "--token",
