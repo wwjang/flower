@@ -83,7 +83,6 @@ def _get_load_client_app_fn(
                 runtime_app_dir = get_project_dir(
                     fab_id, fab_version, get_flwr_dir(flwr_dir)
                 )
-                print(runtime_app_dir, fab_id, fab_version)
                 config = get_project_config(runtime_app_dir)
             except Exception as e:
                 raise LoadClientAppError("Failed to load ClientApp") from e

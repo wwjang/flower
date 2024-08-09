@@ -58,7 +58,6 @@ def run_supernode() -> None:
     _warn_deprecated_server_arg(args)
 
     root_certificates = _get_certificates(args)
-    print("XX", args.app, args.flwr_dir)
     load_fn = _get_load_client_app_fn(
         default_app_ref="",
         app_path=args.app,
