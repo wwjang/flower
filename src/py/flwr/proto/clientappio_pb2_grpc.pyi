@@ -3,36 +3,36 @@
 isort:skip_file
 """
 import abc
-import flwr.proto.appio_pb2
+import flwr.proto.clientappio_pb2
 import grpc
 
 class ClientAppIoStub:
     def __init__(self, channel: grpc.Channel) -> None: ...
     PullClientAppInputs: grpc.UnaryUnaryMultiCallable[
-        flwr.proto.appio_pb2.PullClientAppInputsRequest,
-        flwr.proto.appio_pb2.PullClientAppInputsResponse]
-    """Get Message, Context, FAB, and Run"""
+        flwr.proto.clientappio_pb2.PullClientAppInputsRequest,
+        flwr.proto.clientappio_pb2.PullClientAppInputsResponse]
+    """Get Message, Context, and Run"""
 
     PushClientAppOutputs: grpc.UnaryUnaryMultiCallable[
-        flwr.proto.appio_pb2.PushClientAppOutputsRequest,
-        flwr.proto.appio_pb2.PushClientAppOutputsResponse]
+        flwr.proto.clientappio_pb2.PushClientAppOutputsRequest,
+        flwr.proto.clientappio_pb2.PushClientAppOutputsResponse]
     """Send updated Message and Context"""
 
 
 class ClientAppIoServicer(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def PullClientAppInputs(self,
-        request: flwr.proto.appio_pb2.PullClientAppInputsRequest,
+        request: flwr.proto.clientappio_pb2.PullClientAppInputsRequest,
         context: grpc.ServicerContext,
-    ) -> flwr.proto.appio_pb2.PullClientAppInputsResponse:
-        """Get Message, Context, FAB, and Run"""
+    ) -> flwr.proto.clientappio_pb2.PullClientAppInputsResponse:
+        """Get Message, Context, and Run"""
         pass
 
     @abc.abstractmethod
     def PushClientAppOutputs(self,
-        request: flwr.proto.appio_pb2.PushClientAppOutputsRequest,
+        request: flwr.proto.clientappio_pb2.PushClientAppOutputsRequest,
         context: grpc.ServicerContext,
-    ) -> flwr.proto.appio_pb2.PushClientAppOutputsResponse:
+    ) -> flwr.proto.clientappio_pb2.PushClientAppOutputsResponse:
         """Send updated Message and Context"""
         pass
 
