@@ -22,6 +22,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 
+from flwr.proto.clientappio_pb2 import DEADLINE_EXCEEDED, UNKNOWN_ERROR
+
 NDArray = npt.NDArray[Any]
 NDArrayInt = npt.NDArray[np.int_]
 NDArrayFloat = npt.NDArray[np.float_]
@@ -80,6 +82,22 @@ class Status:
     """Client status."""
 
     code: Code
+    message: str
+
+
+class ClientAppOutputCode(Enum):
+    """ClientApp status codes."""
+
+    SUCCESS = 0
+    DEADLINE_EXCEEDED = 1
+    UNKNOWN_ERROR = 2
+
+
+@dataclass
+class ClientAppOutputStatus:
+    """ClientApp status."""
+
+    code: ClientAppOutputCode
     message: str
 
 

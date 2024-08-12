@@ -29,11 +29,14 @@ from flwr.common.serde import (
     message_to_proto,
     run_from_proto,
 )
-from flwr.proto.appio_pb2 import (  # pylint: disable=E0611
+from flwr.proto.clientappio_pb2 import (  # pylint: disable=E0611
     PullClientAppInputsRequest,
     PushClientAppOutputsRequest,
 )
-from flwr.proto.appio_pb2_grpc import ClientAppIoStub, add_ClientAppIoServicer_to_server
+from flwr.proto.clientappio_pb2_grpc import (
+    ClientAppIoStub,
+    add_ClientAppIoServicer_to_server,
+)
 
 # pylint: disable=E0611
 from flwr.server.superlink.fleet.grpc_bidi.grpc_server import generic_create_grpc_server
