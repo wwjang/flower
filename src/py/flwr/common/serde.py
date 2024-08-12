@@ -19,8 +19,6 @@ from typing import Any, Dict, List, MutableMapping, OrderedDict, Type, TypeVar, 
 
 from google.protobuf.message import Message as GrpcMessage
 
-from flwr.client.client_app import ClientApp
-
 # pylint: disable=E0611
 from flwr.proto.clientappio_pb2 import ClientAppOutputCode, ClientAppOutputStatus
 from flwr.proto.error_pb2 import Error as ProtoError
