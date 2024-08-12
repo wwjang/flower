@@ -28,10 +28,7 @@ from cryptography.hazmat.primitives.serialization import (
 )
 
 from flwr.common import EventType, event
-from flwr.common.config import (  # get_metadata_from_config,; get_project_config,; get_project_dir,
-    get_flwr_dir,
-    parse_config_args,
-)
+from flwr.common.config import get_flwr_dir, parse_config_args
 from flwr.common.constant import (
     TRANSPORT_TYPE_GRPC_ADAPTER,
     TRANSPORT_TYPE_GRPC_RERE,
@@ -77,7 +74,6 @@ def run_supernode() -> None:
         max_wait_time=args.max_wait_time,
         node_config=parse_config_args([args.node_config]),
         flwr_path=get_flwr_dir(args.flwr_dir),
-        isolate=args.isolate,
     )
 
     # Graceful shutdown
@@ -227,13 +223,6 @@ def _parse_args_run_supernode() -> argparse.ArgumentParser:
         - `$XDG_DATA_HOME/.flwr/` if `$XDG_DATA_HOME` is defined
         - `$HOME/.flwr/` in all other cases
     """,
-    )
-    parser.add_argument(
-        "--isolate",
-        action="store_true",
-        help="Run the ClientApp in an isolated process from the SuperNode."
-        "In this mode, the ClientApp and SuperNode communicate via gRPC."
-        "By default, both SuperNode and ClientApp run in the same process.",
     )
 
     return parser
