@@ -223,7 +223,7 @@ def _start_client_internal(
     max_retries: Optional[int] = None,
     max_wait_time: Optional[float] = None,
     flwr_path: Optional[Path] = None,
-    isolate: Optional[bool] = False,
+    run_type: Optional[str] = "internal",
 ) -> None:
     """Start a Flower client node which connects to a Flower server.
 
@@ -271,10 +271,10 @@ def _start_client_internal(
         If set to None, there is no limit to the total time.
     flwr_path: Optional[Path] (default: None)
         The fully resolved path containing installed Flower Apps.
-    isolate: Optional[bool] (default: False)
-        When True, runs the ClientApp in an isolated process. The ClientApp
-        and SuperNode communicates using gRPC. When False, runs the ClientApp
-        in the same process as the SuperNode.
+    run_type: Optional[str] (default: `internal`)
+        The run type of the ClientApp. By default, this value is equal to `internal` and
+        the ClientApp runs in the same process as the SuperNode. If set to `subprocess`,
+        the ClientApp runs in an isolated process and communicates using gRPC.
     """
     if insecure is None:
         insecure = root_certificates is None
@@ -300,7 +300,7 @@ def _start_client_internal(
 
         load_client_app_fn = _load_client_app
 
-    if isolate:
+    if run_type == "subprocess":
         # Start gRPC server
         clientappio_servicer, _ = _run_clientappio_api_grpc(
             address=ADDRESS_CLIENTAPPIO_API_GRPC_RERE
@@ -455,7 +455,7 @@ def _start_client_internal(
                     # Handle app loading and task message
                     try:
                         run: Run = runs[run_id]
-                        if isolate:
+                        if run_type == "subprocess":
                             # Generate SuperNode token
                             token: int = generate_rand_int_from_bytes(RUN_ID_NUM_BYTES)
 
