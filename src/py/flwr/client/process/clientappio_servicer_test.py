@@ -97,7 +97,7 @@ class TestGrpcClientAppIo(unittest.TestCase):
 
         # Execute
         res = push_message(self.mock_stub, token=789, message=message, context=context)
-        status = clientappstatus_from_proto(res)
+        status = clientappstatus_from_proto(res.status)
 
         # Assert
         self.mock_stub.PushClientAppOutputs.assert_called_once()
