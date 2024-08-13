@@ -86,7 +86,7 @@ class Status:
 
 
 class ClientAppOutputCode(Enum):
-    """ClientApp status codes."""
+    """ClientAppIO status codes."""
 
     SUCCESS = 0
     DEADLINE_EXCEEDED = 1
@@ -95,7 +95,7 @@ class ClientAppOutputCode(Enum):
 
 @dataclass
 class ClientAppOutputStatus:
-    """ClientApp status."""
+    """ClientAppIO status."""
 
     code: ClientAppOutputCode
     message: str
