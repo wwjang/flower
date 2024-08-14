@@ -302,7 +302,8 @@ def _start_client_internal(
 
     if run_type == "subprocess":
         # Start gRPC server
-        clientappio_servicer = _run_clientappio_api_grpc(
+        # Note: _grpc_server must be returned otherwise it does not start
+        clientappio_servicer, _grpc_server = _run_clientappio_api_grpc(
             address=ADDRESS_CLIENTAPPIO_API_GRPC_RERE
         )
 
@@ -754,4 +755,4 @@ def _run_clientappio_api_grpc(
     )
     log(INFO, "Starting Flower ClientAppIo gRPC server on %s", address)
     clientappio_grpc_server.start()
-    return clientappio_servicer
+    return clientappio_servicer, clientappio_grpc_server
