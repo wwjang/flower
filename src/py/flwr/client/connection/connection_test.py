@@ -257,3 +257,87 @@ class GrpcRereConnectionTest(ConnectionTest):
     def stop_stub_patcher(self) -> None:
         """Stop the patcher."""
         self.patcher.stop()
+
+
+class GrpcAdapterConnectionTest(ConnectionTest):
+    """Tests for GrpcAdapterConnection."""
+
+    __test__ = True
+
+    @property
+    def connection_type(self) -> type[Connection]:
+        """Get the connection type."""
+        return GrpcAdapterConnection
+
+    def start_stub_patcher(self) -> None:
+        """Start to patch the stub."""
+        stub = Mock()
+        
+        def side_effect(request: MessageContainer) -> MessageContainer:
+            # Mock Ping
+            if request.grpc_message_name == CreateNodeRequest.__qualname__:
+                return _handle(request, CreateNodeRequest, self._create_node)
+            if request.grpc_message_name == DeleteNodeRequest.__qualname__:
+                return _handle(request, DeleteNodeRequest, self._delete_node)
+            if request.grpc_message_name == PingRequest.__qualname__:
+                return _handle(request, PingRequest, self._ping)
+            if request.grpc_message_name == PullTaskInsRequest.__qualname__:
+                return _handle(request, PullTaskInsRequest, self._pull_task_ins)
+            if request.grpc_message_name == PushTaskResRequest.__qualname__:
+                return _handle(request, PushTaskResRequest, self._push_task_res)
+            if request.grpc_message_name == GetRunRequest.__qualname__:
+                return _handle(request, GetRunRequest, self._get_run)
+
+        # Mock CreateNode
+        _, expected_nid = self.pairs.create_node
+        stub.CreateNode.return_value = Mock(node=Node(node_id=expected_nid))
+
+        # Mock DeleteNode
+        def delete_node_side_effect(request: Any) -> Any:
+            self.assertEqual(request.node.node_id, expected_nid)
+
+        stub.DeleteNode.side_effect = delete_node_side_effect
+
+        # Mock PullTaskIns (for `receive` method)
+        _, received_msg = self.pairs.receive
+        task_ins = serde.message_to_taskins(received_msg)
+        task_ins.task_id = received_msg.metadata.message_id
+        stub.PullTaskIns.return_value = Mock(task_ins_list=[task_ins])
+
+        # Mock PushTaskRes (for `send` method)
+        (sent_msg,), _ = self.pairs.send
+
+        def send_side_effect(request: Any) -> Any:
+            self.assertEqual(request.task_res_list[0], task_res)
+
+        task_res = serde.message_to_taskres(sent_msg)
+        stub.PushTaskRes.side_effect = send_side_effect
+
+        # Mock GetRun
+        (run_id,), run_info = self.pairs.get_run
+
+        def get_run_side_effect(request: Any) -> Any:
+            self.assertEqual(request.run_id, run_id)
+            return Mock(run=run_info)
+
+        stub.GetRun.side_effect = get_run_side_effect
+
+        # Mock GetFab
+        (fab_hash,), fab = self.pairs.get_fab
+
+        def get_fab_side_effect(request: Any) -> Any:
+            self.assertEqual(request.hash_str, fab_hash)
+            return Mock(fab=fab)
+
+        stub.GetFab.side_effect = get_fab_side_effect
+
+        # Start patcher
+        self.patcher = patch(
+            "flwr.client.connection.grpc_rere.grpc_rere_connection.GrpcAdapterStub",
+            return_value=stub,
+        )
+        self.patcher.start()
+
+    def stop_stub_patcher(self) -> None:
+        """Stop the patcher."""
+        self.patcher.stop()
