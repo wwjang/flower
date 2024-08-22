@@ -18,31 +18,21 @@
 from __future__ import annotations
 
 import unittest
+from abc import abstractmethod
+from dataclasses import dataclass
+from typing import Any, TypeVar
 from unittest.mock import Mock, patch
 
 from google.protobuf.message import Message as GrpcMessage
-from . import Connection, GrpcAdapterConnection, GrpcRereConnection, RestConnection
-from flwr.proto.fleet_pb2 import (  # pylint: disable=E0611
-    CreateNodeResponse,
-    CreateNodeRequest,
-    PingResponse,
-    PingRequest,
-)
-from flwr.common.serde_test import RecordMaker
-from flwr.common import Message
-from flwr.proto.fab_pb2 import GetFabRequest, GetFabResponse  # pylint: disable=E0611
-from flwr.proto.run_pb2 import GetRunRequest, GetRunResponse  # pylint: disable=E0611
-from flwr.proto.grpcadapter_pb2 import MessageContainer  # pylint: disable=E0611
-from flwr.proto.node_pb2 import Node  # pylint: disable=E0611
-from abc import abstractmethod
+
+from flwr.common import Message, serde
 from flwr.common.retry_invoker import RetryInvoker, exponential
-from typing import TypeVar, Any
-from dataclasses import dataclass
-from flwr.common import serde
+from flwr.common.serde_test import RecordMaker
 from flwr.common.typing import Fab, Run
 
+from . import Connection, GrpcRereConnection
 
-# Tests for GrpcBidiConnections are not included in this file because 
+# Tests for GrpcBidiConnections are not included in this file because
 # it doesn't support all Fleet APIs.
 
 T = TypeVar("T", bound=GrpcMessage)
@@ -50,6 +40,8 @@ T = TypeVar("T", bound=GrpcMessage)
 
 @dataclass
 class IoPairs:
+    """The input and output pairs of Connection methods."""
+
     create_node: tuple[tuple[Any, ...], Any]
     delete_node: tuple[tuple[Any, ...], Any]
     receive: tuple[tuple[Any, ...], Any]
@@ -60,15 +52,15 @@ class IoPairs:
 
 # Base TestCase for all connection tests
 class ConnectionTest(unittest.TestCase):
-    """Test all connection implementations."""
+    """Tests for all connection implementations."""
 
     # This is to True in each child class
     __test__ = False
-    
+
     @abstractmethod
     def start_stub_patcher(self) -> None:
         """Start to patch the stub."""
-    
+
     @abstractmethod
     def stop_stub_patcher(self) -> None:
         """Stop the patcher."""
@@ -77,7 +69,7 @@ class ConnectionTest(unittest.TestCase):
     @abstractmethod
     def connection_type(self) -> type[Connection]:
         """Get the connection type."""
-    
+
     def setUp(self) -> None:
         """Prepare before each test."""
         mk = RecordMaker()
@@ -91,84 +83,99 @@ class ConnectionTest(unittest.TestCase):
             receive=((), received_msg),
             send=((sent_msg,), None),
             get_run=((616,), run_info),
-            get_fab=(("#mock hash",), fab)
+            get_fab=(("#mock hash",), fab),
         )
         self.start_stub_patcher()
         self.conn = self.connection_type(
             server_address="123.123.123.123:1234",
-            retry_invoker=RetryInvoker(exponential, Exception, max_tries=1, max_time=None),
+            insecure=True,
+            retry_invoker=RetryInvoker(
+                exponential, Exception, max_tries=1, max_time=None
+            ),
         )
-    
+
     def tearDown(self) -> None:
-        """Cleanup"""
+        """Cleanup."""
         self.stop_stub_patcher()
-    
-    def test_create_node(self):
+
+    def test_create_node(self) -> None:
+        """Test create_node method."""
         # Prepare
         expected_node_id = self.pairs.create_node[1]
-        
+
         # Execute
         node_id = self.conn.create_node()
-        
+
         # Assert
         self.assertEqual(node_id, expected_node_id)
-        
 
 
 class GrpcRereConnectionTest(ConnectionTest):
-    
+    """Tests for GrpcRereConnection."""
+
     __test__ = True
-    
+
     @property
     def connection_type(self) -> type[Connection]:
+        """Get the connection type."""
         return GrpcRereConnection
-    
+
     def start_stub_patcher(self) -> None:
+        """Start to patch the stub."""
         stub = Mock()
-        
+
         # Mock Ping
         stub.Ping.return_value = Mock(success=True)
-        
+
         # Mock CreateNode
         _, expected_nid = self.pairs.create_node
         stub.CreateNode.return_value = Mock(node=Mock(node_id=expected_nid))
-        
+
         # Mock DeleteNode
-        stub.DeleteNode.side_effect = lambda req: self.assertEqual(req.node.node_id, expected_nid)
-        
+        def delete_node_side_effect(req: Any) -> Any:
+            self.assertEqual(req.node.node_id, expected_nid)
+
+        stub.DeleteNode.side_effect = delete_node_side_effect
+
         # Mock PullTaskIns (for `receive` method)
         _, received_msg = self.pairs.receive
         task_ins = serde.message_to_taskins(received_msg)
         stub.PullTaskIns.return_value = task_ins
-        
+
         # Mock PushTaskRes (for `send` method)
-        (sent_msg, ), _ = self.pairs.send
+        (sent_msg,), _ = self.pairs.send
+
+        def send_side_effect(req: Any) -> Any:
+            self.assertEqual(req.task_res_list[0], task_res)
+
         task_res = serde.message_to_taskres(sent_msg)
-        stub.PushTaskRes.side_effect = lambda req: self.assertEqual(req.task_res_list[0], task_res)
-        
+        stub.PushTaskRes.side_effect = send_side_effect
+
         # Mock GetRun
-        (run_id, ), run_info = self.pairs.get_run
-        stub.GetRun.side_effect = lambda req: (
-            self.assertEqual(req.run_id, run_id),
-            Mock(run=run_info)
-        )[1]
-        
+        (run_id,), run_info = self.pairs.get_run
+
+        def get_run_side_effect(req: Any) -> Any:
+            self.assertEqual(req.run_id, run_id)
+            return Mock(run=run_info)
+
+        stub.GetRun.side_effect = get_run_side_effect
+
         # Mock GetFab
-        (fab_hash, ), fab = self.pairs.get_fab
-        stub.GetFab.side_effect = lambda req: (
-            self.assertEqual(req.hash_str, fab_hash),
-            Mock(fab=fab)
-        )[1]
-        
+        (fab_hash,), fab = self.pairs.get_fab
+
+        def get_fab_side_effect(req: Any) -> Any:
+            self.assertEqual(req.hash_str, fab_hash)
+            return Mock(fab=fab)
+
+        stub.GetFab.side_effect = get_fab_side_effect
+
         # Start patcher
         self.patcher = patch(
             "flwr.client.connection.grpc_rere.grpc_rere_connection.FleetStub",
             return_value=stub,
-            )
+        )
         self.patcher.start()
-    
+
     def stop_stub_patcher(self) -> None:
+        """Stop the patcher."""
         self.patcher.stop()
-        
-        
-    
