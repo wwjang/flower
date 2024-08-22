@@ -20,7 +20,7 @@ from __future__ import annotations
 import unittest
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, TypeVar, Callable
 from unittest.mock import Mock, patch
 
 from google.protobuf.message import Message as GrpcMessage
@@ -29,9 +29,26 @@ from flwr.common import Message, serde
 from flwr.common.retry_invoker import RetryInvoker, exponential
 from flwr.common.serde_test import RecordMaker
 from flwr.common.typing import Fab, Run
+from flwr.proto.fleet_pb2 import (  # pylint: disable=E0611
+    CreateNodeResponse,
+    CreateNodeRequest,
+    PingResponse,
+    PingRequest,
+    DeleteNodeRequest,
+    DeleteNodeResponse,
+    PullTaskInsRequest,
+    PullTaskInsResponse,
+    PushTaskResRequest,
+    PushTaskResResponse,
+)
+from flwr.common.serde_test import RecordMaker
+from flwr.common import Message
+from flwr.proto.fab_pb2 import GetFabRequest, GetFabResponse  # pylint: disable=E0611
+from flwr.proto.run_pb2 import GetRunRequest, GetRunResponse  # pylint: disable=E0611
+from flwr.proto.grpcadapter_pb2 import MessageContainer  # pylint: disable=E0611
 from flwr.proto.node_pb2 import Node  # pylint: disable=E0611
 
-from . import Connection, GrpcRereConnection
+from . import Connection, GrpcRereConnection, GrpcAdapterConnection
 
 # Tests for GrpcBidiConnections are not included in this file because
 # it doesn't support all Fleet APIs.
