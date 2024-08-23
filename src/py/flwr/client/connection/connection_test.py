@@ -20,15 +20,17 @@ from __future__ import annotations
 import unittest
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 from unittest.mock import Mock, patch
 
 from google.protobuf.message import Message as GrpcMessage
 
 from flwr.common import Message, serde
+from flwr.common.message import Metadata
 from flwr.common.retry_invoker import RetryInvoker, exponential
 from flwr.common.serde_test import RecordMaker
 from flwr.common.typing import Fab, Run
+from flwr.proto.fab_pb2 import GetFabRequest, GetFabResponse  # pylint: disable=E0611
 from flwr.proto.fleet_pb2 import (  # pylint: disable=E0611
     CreateNodeRequest,
     CreateNodeResponse,
@@ -44,7 +46,6 @@ from flwr.proto.fleet_pb2 import (  # pylint: disable=E0611
 from flwr.proto.grpcadapter_pb2 import MessageContainer  # pylint: disable=E0611
 from flwr.proto.node_pb2 import Node  # pylint: disable=E0611
 from flwr.proto.run_pb2 import GetRunRequest, GetRunResponse  # pylint: disable=E0611
-from flwr.proto.run_pb2 import Run as RunProto  # pylint: disable=E0611
 
 from . import Connection, GrpcAdapterConnection, GrpcRereConnection
 
@@ -52,6 +53,28 @@ from . import Connection, GrpcAdapterConnection, GrpcRereConnection
 # it doesn't support all Fleet APIs.
 
 T = TypeVar("T", bound=GrpcMessage)
+
+
+mk = RecordMaker()
+NODE_ID = 6
+FAB_HASH = "#mock hash"
+FAB = Fab(FAB_HASH, b"mock fab content")
+RUN_ID = 616
+RUN_INFO = Run(RUN_ID, "dummy/mock", "v0.0", FAB_HASH, {})
+MESSAGE = Message(
+    metadata=Metadata(
+        run_id=RUN_ID,
+        message_id=mk.get_str(64),
+        group_id=mk.get_str(30),
+        src_node_id=0,
+        dst_node_id=NODE_ID,
+        reply_to_message="",
+        ttl=mk.rng.randint(1, 1 << 30),
+        message_type=mk.get_str(10),
+    ),
+    content=mk.recordset(1, 1, 1),
+)
+REPLY_MESSAGE = MESSAGE.create_reply(mk.recordset(1, 1, 1))
 
 
 @dataclass
@@ -73,13 +96,25 @@ class ConnectionTest(unittest.TestCase):
     # This is to True in each child class
     __test__ = False
 
+    @property
     @abstractmethod
-    def start_stub_patcher(self) -> None:
-        """Start to patch the stub."""
+    def send_received(self) -> Message | None:
+        """The message received by the server for `send` method."""
 
+    @property
     @abstractmethod
-    def stop_stub_patcher(self) -> None:
-        """Stop the patcher."""
+    def get_run_received(self) -> int | None:
+        """The run_id received by the server for `get_run` method."""
+
+    @property
+    @abstractmethod
+    def get_fab_received(self) -> str | None:
+        """The fab_hash received by the server for `get_fab` method."""
+
+    @property
+    @abstractmethod
+    def node_id_received(self) -> int | None:
+        """The node_id received by the server for any method."""
 
     @property
     @abstractmethod
@@ -88,24 +123,7 @@ class ConnectionTest(unittest.TestCase):
 
     def setUp(self) -> None:
         """Prepare before each test."""
-        mk = RecordMaker()
-        node_id = 6
-        run_id = 616
-        received_msg = Message(mk.metadata(), mk.recordset(1, 1, 1))
-        received_msg.metadata.__dict__["_src_node_id"] = 0
-        received_msg.metadata.dst_node_id = node_id  # Target at this node
-        sent_msg = received_msg.create_reply(mk.recordset(1, 1, 1))
-        run_info = Run(616, "dummy/mock", "v0.0", "#mock hash", {})
-        fab = Fab("#mock hash", b"mock fab content")
-        self.pairs = IoPairs(
-            create_node=((), node_id),
-            delete_node=((), None),
-            receive=((), received_msg),
-            send=((sent_msg,), None),
-            get_run=((run_id,), run_info),
-            get_fab=(("#mock hash",), fab),
-        )
-        self.start_stub_patcher()
+        # Create a connection
         self.conn = self.connection_type(
             server_address="123.123.123.123:1234",
             insecure=True,
@@ -114,20 +132,13 @@ class ConnectionTest(unittest.TestCase):
             ),
         )
 
-    def tearDown(self) -> None:
-        """Cleanup."""
-        self.stop_stub_patcher()
-
     def test_create_node(self) -> None:
         """Test create_node method."""
-        # Prepare
-        expected_node_id = self.pairs.create_node[1]
-
         # Execute
         node_id = self.conn.create_node()
 
         # Assert
-        self.assertEqual(node_id, expected_node_id)
+        self.assertEqual(node_id, NODE_ID)
 
     def test_delete_node(self) -> None:
         """Test delete_node method."""
@@ -135,54 +146,53 @@ class ConnectionTest(unittest.TestCase):
         self.conn.create_node()
         self.conn.delete_node()
 
+        # Assert
+        self.assertEqual(self.node_id_received, NODE_ID)
+
     def test_receive(self) -> None:
         """Test receive method."""
-        # Prepare
-        expected_msg: Message = self.pairs.receive[1]
-
         # Execute
         self.conn.create_node()
         actual_msg = self.conn.receive()
 
         # Assert
         assert actual_msg is not None
+        self.assertEqual(self.node_id_received, NODE_ID)
         # Message object doesn't support `==` operator
-        self.assertEqual(actual_msg.metadata, expected_msg.metadata)
-        self.assertEqual(actual_msg.content, expected_msg.content)
+        self.assertEqual(actual_msg.metadata, MESSAGE.metadata)
+        self.assertEqual(actual_msg.content, MESSAGE.content)
 
     def test_send(self) -> None:
         """Test send method."""
-        # Prepare
-        msg: Message = self.pairs.send[0][0]
-
         # Execute
         self.conn.create_node()
         self.conn.receive()
-        self.conn.send(msg)
+        self.conn.send(REPLY_MESSAGE)
+
+        # Assert
+        assert self.send_received is not None
+        self.assertEqual(self.send_received.metadata, REPLY_MESSAGE.metadata)
+        self.assertEqual(self.send_received.content, REPLY_MESSAGE.content)
 
     def test_get_run(self) -> None:
         """Test get_run method."""
-        # Prepare
-        (run_id,), run_info = self.pairs.get_run
-
         # Execute
         self.conn.create_node()
-        actual_run_info = self.conn.get_run(run_id)
+        actual_run_info = self.conn.get_run(RUN_ID)
 
         # Assert
-        self.assertEqual(actual_run_info, run_info)
+        self.assertEqual(self.get_run_received, RUN_ID)
+        self.assertEqual(actual_run_info, RUN_INFO)
 
     def test_get_fab(self) -> None:
         """Test get_fab method."""
-        # Prepare
-        (fab_hash,), fab = self.pairs.get_fab
-
         # Execute
         self.conn.create_node()
-        actual_fab = self.conn.get_fab(fab_hash)
+        actual_fab = self.conn.get_fab(FAB_HASH)
 
         # Assert
-        self.assertEqual(actual_fab, fab)
+        self.assertEqual(self.get_fab_received, FAB_HASH)
+        self.assertEqual(actual_fab, FAB)
 
 
 class GrpcRereConnectionTest(ConnectionTest):
@@ -191,59 +201,43 @@ class GrpcRereConnectionTest(ConnectionTest):
     __test__ = True
 
     @property
+    def send_received(self) -> Message | None:
+        """The message received by the server for `send` method."""
+        return cast(Message | None, self._server_received.get("send_received", None))
+
+    @property
+    def get_run_received(self) -> int | None:
+        """The run_id received by the server for `get_run` method."""
+        return cast(int | None, self._server_received.get("get_run_received", None))
+
+    @property
+    def get_fab_received(self) -> str | None:
+        """The fab_hash received by the server for `get_fab` method."""
+        return cast(str | None, self._server_received.get("get_fab_received", None))
+
+    @property
+    def node_id_received(self) -> int | None:
+        """The node_id received by the server for any method."""
+        return cast(int | None, self._server_received.get("node_id_received", None))
+
+    @property
     def connection_type(self) -> type[Connection]:
         """Get the connection type."""
         return GrpcRereConnection
 
-    def start_stub_patcher(self) -> None:
+    def setUp(self) -> None:
         """Start to patch the stub."""
         stub = Mock()
+        self._server_received: dict[str, Any] = {}
 
-        # Mock Ping
-        stub.Ping.return_value = Mock(success=True)
-
-        # Mock CreateNode
-        _, expected_nid = self.pairs.create_node
-        stub.CreateNode.return_value = Mock(node=Node(node_id=expected_nid))
-
-        # Mock DeleteNode
-        def delete_node_side_effect(request: Any) -> Any:
-            self.assertEqual(request.node.node_id, expected_nid)
-
-        stub.DeleteNode.side_effect = delete_node_side_effect
-
-        # Mock PullTaskIns (for `receive` method)
-        _, received_msg = self.pairs.receive
-        task_ins = serde.message_to_taskins(received_msg)
-        task_ins.task_id = received_msg.metadata.message_id
-        stub.PullTaskIns.return_value = Mock(task_ins_list=[task_ins])
-
-        # Mock PushTaskRes (for `send` method)
-        (sent_msg,), _ = self.pairs.send
-
-        def send_side_effect(request: Any) -> Any:
-            self.assertEqual(request.task_res_list[0], task_res)
-
-        task_res = serde.message_to_taskres(sent_msg)
-        stub.PushTaskRes.side_effect = send_side_effect
-
-        # Mock GetRun
-        (run_id,), run_info = self.pairs.get_run
-
-        def get_run_side_effect(request: Any) -> Any:
-            self.assertEqual(request.run_id, run_id)
-            return Mock(run=run_info)
-
-        stub.GetRun.side_effect = get_run_side_effect
-
-        # Mock GetFab
-        (fab_hash,), fab = self.pairs.get_fab
-
-        def get_fab_side_effect(request: Any) -> Any:
-            self.assertEqual(request.hash_str, fab_hash)
-            return Mock(fab=fab)
-
-        stub.GetFab.side_effect = get_fab_side_effect
+        # Mock RPCs
+        stub.Ping.side_effect = self._mock_ping
+        stub.CreateNode.side_effect = self._mock_create_node
+        stub.DeleteNode.side_effect = self._mock_delete_node
+        stub.PullTaskIns.side_effect = self._mock_receive
+        stub.PushTaskRes.side_effect = self._mock_send
+        stub.GetRun.side_effect = self._mock_get_run
+        stub.GetFab.side_effect = self._mock_get_fab
 
         # Start patcher
         self.patcher = patch(
@@ -251,61 +245,89 @@ class GrpcRereConnectionTest(ConnectionTest):
             return_value=stub,
         )
         self.patcher.start()
+        super().setUp()
 
-    def stop_stub_patcher(self) -> None:
+    def tearDown(self) -> None:
         """Stop the patcher."""
         self.patcher.stop()
 
+    # pylint: disable-next=unused-argument
+    def _mock_ping(self, request: PingRequest) -> PingResponse:
+        return PingResponse(success=True)
 
-class GrpcAdapterConnectionTest(ConnectionTest):
+    # pylint: disable-next=unused-argument
+    def _mock_create_node(self, request: CreateNodeRequest) -> CreateNodeResponse:
+        return CreateNodeResponse(node=Node(node_id=NODE_ID))
+
+    def _mock_delete_node(self, request: DeleteNodeRequest) -> DeleteNodeResponse:
+        self._server_received["node_id_received"] = request.node.node_id
+        return DeleteNodeResponse()
+
+    def _mock_receive(self, request: PullTaskInsRequest) -> PullTaskInsResponse:
+        self._server_received["node_id_received"] = request.node.node_id
+        task_ins = serde.message_to_taskins(MESSAGE)
+        task_ins.task_id = MESSAGE.metadata.message_id
+        return PullTaskInsResponse(task_ins_list=[task_ins])
+
+    def _mock_send(self, request: PushTaskResRequest) -> PushTaskResResponse:
+        task_res = request.task_res_list[0]
+        msg = serde.message_from_taskres(task_res)
+        self._server_received["send_received"] = msg
+        return PushTaskResResponse()
+
+    def _mock_get_run(self, request: GetRunRequest) -> GetRunResponse:
+        self._server_received["get_run_received"] = request.run_id
+        return GetRunResponse(run=serde.run_to_proto(RUN_INFO))
+
+    def _mock_get_fab(self, request: GetFabRequest) -> GetFabResponse:
+        self._server_received["get_fab_received"] = request.hash_str
+        return GetFabResponse(fab=serde.fab_to_proto(FAB))
+
+
+class GrpcAdapterConnectionTest(GrpcRereConnectionTest):
     """Tests for GrpcAdapterConnection."""
-
-    __test__ = True
 
     @property
     def connection_type(self) -> type[Connection]:
         """Get the connection type."""
         return GrpcAdapterConnection
 
-    def start_stub_patcher(self) -> None:
-        """Start to patch the stub."""
+    def setUp(self) -> None:
+        """."""
         stub = Mock()
+        self._server_received: dict[str, Any] = {}
 
         def side_effect(request: MessageContainer) -> MessageContainer:
             req: GrpcMessage | None = None
             res: GrpcMessage | None = None
             # Mock Ping
             if request.grpc_message_name == PingRequest.__qualname__:
-                res = PingResponse(success=True)
+                req = PingRequest.FromString(request.grpc_message_content)
+                res = self._mock_ping(req)
             # Mock CreateNode
             elif request.grpc_message_name == CreateNodeRequest.__qualname__:
-                _, expected_nid = self.pairs.create_node
-                res = CreateNodeResponse(node=Node(node_id=expected_nid))
+                req = CreateNodeRequest.FromString(request.grpc_message_content)
+                res = self._mock_create_node(req)
             # Mock DeleteNode
             elif request.grpc_message_name == DeleteNodeRequest.__qualname__:
                 req = DeleteNodeRequest.FromString(request.grpc_message_content)
-                _, expected_nid = self.pairs.create_node
-                self.assertEqual(req.node.node_id, expected_nid)
-                res = DeleteNodeResponse()
+                res = self._mock_delete_node(req)
             # Mock PullTaskIns (for `receive` method)
             elif request.grpc_message_name == PullTaskInsRequest.__qualname__:
-                _, received_msg = self.pairs.receive
-                task_ins = serde.message_to_taskins(received_msg)
-                task_ins.task_id = received_msg.metadata.message_id
-                res = PullTaskInsResponse(task_ins_list=[task_ins])
+                req = PullTaskInsRequest.FromString(request.grpc_message_content)
+                res = self._mock_receive(req)
             # Mock PushTaskRes (for `send` method)
             elif request.grpc_message_name == PushTaskResRequest.__qualname__:
                 req = PushTaskResRequest.FromString(request.grpc_message_content)
-                (sent_msg,), _ = self.pairs.send
-                task_res = serde.message_to_taskres(sent_msg)
-                self.assertEqual(req.task_res_list[0], task_res)
-                res = PushTaskResResponse()
+                res = self._mock_send(req)
             # Mock GetRun
             elif request.grpc_message_name == GetRunRequest.__qualname__:
                 req = GetRunRequest.FromString(request.grpc_message_content)
-                (run_id,), run_info = self.pairs.get_run
-                self.assertEqual(req.run_id, run_id)
-                res = GetRunResponse(run=RunProto(**run_info.__dict__))
+                res = self._mock_get_run(req)
+            # Mock GetFab
+            elif request.grpc_message_name == GetFabRequest.__qualname__:
+                req = GetFabRequest.FromString(request.grpc_message_content)
+                res = self._mock_get_fab(req)
 
             assert res is not None
             return MessageContainer(
@@ -316,16 +338,22 @@ class GrpcAdapterConnectionTest(ConnectionTest):
         stub.SendReceive.side_effect = side_effect
 
         # Start patcher
+        module = "flwr.client.connection.grpc_adapter.grpc_adapter_connection"
         self.patcher = patch(
-            "flwr.client.connection.grpc_adapter.grpc_adapter_connection.GrpcAdapterStub",
+            f"{module}.GrpcAdapterStub",
             return_value=stub,
         )
         self.patcher.start()
 
-    def stop_stub_patcher(self) -> None:
-        """Stop the patcher."""
-        self.patcher.stop()
+        # Create a connection
+        self.conn = self.connection_type(
+            server_address="123.123.123.123:1234",
+            insecure=True,
+            retry_invoker=RetryInvoker(
+                exponential, Exception, max_tries=1, max_time=None
+            ),
+        )
 
-    def test_get_fab(self) -> None:
-        """Skip test for get_fab."""
-        assert True
+    def tearDown(self) -> None:
+        """."""
+        self.patcher.stop()
