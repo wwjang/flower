@@ -20,7 +20,7 @@ from __future__ import annotations
 import unittest
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, TypeVar, cast
+from typing import Any, Optional, TypeVar, cast
 from unittest.mock import Mock, patch
 
 from google.protobuf.message import Message as GrpcMessage
@@ -47,7 +47,7 @@ from flwr.proto.grpcadapter_pb2 import MessageContainer  # pylint: disable=E0611
 from flwr.proto.node_pb2 import Node  # pylint: disable=E0611
 from flwr.proto.run_pb2 import GetRunRequest, GetRunResponse  # pylint: disable=E0611
 
-from . import Connection, GrpcAdapterConnection, GrpcRereConnection
+from . import Connection, GrpcAdapterConnection, GrpcRereConnection, RestConnection
 
 # Tests for GrpcBidiConnections are not included in this file because
 # it doesn't support all Fleet APIs.
@@ -203,22 +203,22 @@ class GrpcRereConnectionTest(ConnectionTest):
     @property
     def send_received(self) -> Message | None:
         """The message received by the server for `send` method."""
-        return cast(Message | None, self._server_received.get("send_received", None))
+        return cast(Optional[Message], self._server_received.get("send_received", None))
 
     @property
     def get_run_received(self) -> int | None:
         """The run_id received by the server for `get_run` method."""
-        return cast(int | None, self._server_received.get("get_run_received", None))
+        return cast(Optional[int], self._server_received.get("get_run_received", None))
 
     @property
     def get_fab_received(self) -> str | None:
         """The fab_hash received by the server for `get_fab` method."""
-        return cast(str | None, self._server_received.get("get_fab_received", None))
+        return cast(Optional[str], self._server_received.get("get_fab_received", None))
 
     @property
     def node_id_received(self) -> int | None:
         """The node_id received by the server for any method."""
-        return cast(int | None, self._server_received.get("node_id_received", None))
+        return cast(Optional[int], self._server_received.get("node_id_received", None))
 
     @property
     def connection_type(self) -> type[Connection]:
@@ -344,6 +344,78 @@ class GrpcAdapterConnectionTest(GrpcRereConnectionTest):
             return_value=stub,
         )
         self.patcher.start()
+
+        # Create a connection
+        self.conn = self.connection_type(
+            server_address="123.123.123.123:1234",
+            insecure=True,
+            retry_invoker=RetryInvoker(
+                exponential, Exception, max_tries=1, max_time=None
+            ),
+        )
+
+    def tearDown(self) -> None:
+        """."""
+        self.patcher.stop()
+
+
+class RestConnectionTest(GrpcRereConnectionTest):
+    """Tests for RestConnection."""
+
+    @property
+    def connection_type(self) -> type[Connection]:
+        """Get the connection type."""
+        return RestConnection
+
+    def setUp(self) -> None:
+        """."""
+        self._server_received: dict[str, Any] = {}
+
+        def side_effect(url: str, data: bytes, **_kwargs: Any) -> Mock:
+            req: GrpcMessage | None = None
+            res: GrpcMessage | None = None
+            # Mock Ping
+            if url.endswith("ping"):
+                req = PingRequest.FromString(data)
+                res = self._mock_ping(req)
+            # Mock CreateNode
+            elif url.endswith("create-node"):
+                req = CreateNodeRequest.FromString(data)
+                res = self._mock_create_node(req)
+            # Mock DeleteNode
+            elif url.endswith("delete-node"):
+                req = DeleteNodeRequest.FromString(data)
+                res = self._mock_delete_node(req)
+            # Mock PullTaskIns (for `receive` method)
+            elif url.endswith("pull-task-ins"):
+                req = PullTaskInsRequest.FromString(data)
+                res = self._mock_receive(req)
+            # Mock PushTaskRes (for `send` method)
+            elif url.endswith("push-task-res"):
+                req = PushTaskResRequest.FromString(data)
+                res = self._mock_send(req)
+            # Mock GetRun
+            elif url.endswith("get-run"):
+                req = GetRunRequest.FromString(data)
+                res = self._mock_get_run(req)
+            # Mock GetFab
+            elif url.endswith("get-fab"):
+                req = GetFabRequest.FromString(data)
+                res = self._mock_get_fab(req)
+
+            assert res is not None
+            return Mock(
+                status_code=200,
+                headers={"content-type": "application/protobuf"},
+                content=res.SerializeToString(),
+            )
+
+        # Start patcher
+        self.patcher = patch(
+            "requests.post",
+        )
+        mock_post = self.patcher.start()
+        mock_post.side_effect = side_effect
 
         # Create a connection
         self.conn = self.connection_type(
