@@ -5,6 +5,8 @@ Build
 .. toctree::
    :titlesonly:
 
+   how-to-install-flower
+   how-to-configure-clients
    how-to-use-strategies
    how-to-implement-strategies
    how-to-aggregate-evaluation-results

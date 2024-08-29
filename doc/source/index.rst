@@ -46,6 +46,8 @@ A learning-oriented series of federated learning tutorials, the best place to st
 
    tutorial-quickstart
 
+QUICKSTART TUTORIALS: :doc:`PyTorch <tutorial-quickstart-pytorch>` | :doc:`TensorFlow <tutorial-quickstart-tensorflow>` | :doc:`MLX <tutorial-quickstart-mlx>` | :doc:`🤗 Transformers <tutorial-quickstart-huggingface>` | :doc:`JAX <tutorial-quickstart-jax>` | :doc:`Pandas <tutorial-quickstart-pandas>` | :doc:`fastai <tutorial-quickstart-fastai>` | :doc:`PyTorch Lightning <tutorial-quickstart-pytorch-lightning>` | :doc:`scikit-learn <tutorial-quickstart-scikitlearn>` | :doc:`XGBoost <tutorial-quickstart-xgboost>` | :doc:`Android <tutorial-quickstart-android>` | :doc:`iOS <tutorial-quickstart-ios>`
+
 Build a Flower project
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -70,30 +72,29 @@ Deploy Flower projects in production
 
    deploy
 
-QUICKSTART TUTORIALS: :doc:`PyTorch <tutorial-quickstart-pytorch>` | :doc:`TensorFlow <tutorial-quickstart-tensorflow>` | :doc:`MLX <tutorial-quickstart-mlx>` | :doc:`🤗 Transformers <tutorial-quickstart-huggingface>` | :doc:`JAX <tutorial-quickstart-jax>` | :doc:`Pandas <tutorial-quickstart-pandas>` | :doc:`fastai <tutorial-quickstart-fastai>` | :doc:`PyTorch Lightning <tutorial-quickstart-pytorch-lightning>` | :doc:`scikit-learn <tutorial-quickstart-scikitlearn>` | :doc:`XGBoost <tutorial-quickstart-xgboost>` | :doc:`Android <tutorial-quickstart-android>` | :doc:`iOS <tutorial-quickstart-ios>`
 
-We also made video tutorials for PyTorch:
+Contribute to Flower
+~~~~~~~~~~~~~~~~~~~~
 
-..  youtube:: jOmmuzMIQ4c
-   :width: 80%
+.. toctree::
+   :titlesonly:
 
-And TensorFlow:
+   contribute
 
-..  youtube:: FGTc2TQq7VM
-   :width: 80%
+.. We also made video tutorials for PyTorch:
+
+.. ..  youtube:: jOmmuzMIQ4c
+..    :width: 80%
+
+.. And TensorFlow:
+
+.. ..  youtube:: FGTc2TQq7VM
+..    :width: 80%
 
 How-to guides
 ~~~~~~~~~~~~~
 
-Problem-oriented how-to guides show step-by-step how to achieve a specific goal.
-
-.. toctree::
-   :maxdepth: 1
-   :caption: How-to guides
-
-   how-to-install-flower
-   how-to-configure-clients
-   how-to-configure-logging
+Problem-oriented how-to guides show step-by-step how to achieve a specific goal.   
 
 .. toctree::
    :maxdepth: 1
@@ -141,52 +142,3 @@ Information-oriented API reference and other reference material.
    ref-telemetry
    ref-changelog
    ref-faq
-
-
-Contributor docs
-----------------
-
-The Flower community welcomes contributions. The following docs are intended to help along the way.
-
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Contributor tutorials
-
-   contributor-tutorial-contribute-on-github
-   contributor-tutorial-get-started-as-a-contributor
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Contributor how-to guides
-
-   contributor-how-to-install-development-versions
-   contributor-how-to-set-up-a-virtual-env
-   contributor-how-to-develop-in-vscode-dev-containers
-   contributor-how-to-write-documentation
-   contributor-how-to-release-flower
-   contributor-how-to-contribute-translations
-   contributor-how-to-build-docker-images
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Contributor explanations
-
-   contributor-explanation-architecture
-   contributor-explanation-public-and-private-apis
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Contributor references
-
-   fed/index
-   contributor-ref-good-first-contributions
-   contributor-ref-secure-aggregation-protocols
-
-
-.. Indices and tables
-.. ------------------
-
-.. * :ref:`genindex`
-.. * :ref:`modindex`
-.. * :ref:`search`
