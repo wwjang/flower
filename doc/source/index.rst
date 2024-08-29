@@ -46,7 +46,29 @@ A learning-oriented series of federated learning tutorials, the best place to st
 
    tutorial-quickstart
 
+Build a Flower project
+~~~~~~~~~~~~~~~~~~~~~~
 
+.. toctree::
+   :titlesonly:
+
+   build
+
+Simulate Flower projects at scale
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. toctree::
+   :titlesonly:
+
+   simulate
+
+Deploy Flower projects in production
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. toctree::
+   :titlesonly:
+
+   deploy
 
 QUICKSTART TUTORIALS: :doc:`PyTorch <tutorial-quickstart-pytorch>` | :doc:`TensorFlow <tutorial-quickstart-tensorflow>` | :doc:`MLX <tutorial-quickstart-mlx>` | :doc:`🤗 Transformers <tutorial-quickstart-huggingface>` | :doc:`JAX <tutorial-quickstart-jax>` | :doc:`Pandas <tutorial-quickstart-pandas>` | :doc:`fastai <tutorial-quickstart-fastai>` | :doc:`PyTorch Lightning <tutorial-quickstart-pytorch-lightning>` | :doc:`scikit-learn <tutorial-quickstart-scikitlearn>` | :doc:`XGBoost <tutorial-quickstart-xgboost>` | :doc:`Android <tutorial-quickstart-android>` | :doc:`iOS <tutorial-quickstart-ios>`
 
@@ -71,20 +93,7 @@ Problem-oriented how-to guides show step-by-step how to achieve a specific goal.
 
    how-to-install-flower
    how-to-configure-clients
-   how-to-use-strategies
-   how-to-implement-strategies
-   how-to-aggregate-evaluation-results
-   how-to-save-and-load-model-checkpoints
-   how-to-run-simulations
-   how-to-monitor-simulation
    how-to-configure-logging
-   how-to-enable-ssl-connections
-   how-to-use-built-in-mods
-   how-to-use-differential-privacy
-   how-to-authenticate-supernodes
-   docker/index
-   how-to-upgrade-to-flower-1.0
-   how-to-upgrade-to-flower-next
 
 .. toctree::
    :maxdepth: 1
