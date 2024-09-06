@@ -19,13 +19,11 @@ import base64
 import threading
 import unittest
 from concurrent import futures
-from logging import DEBUG, INFO, WARN
 from typing import Optional, Sequence, Tuple, Union
 
 import grpc
 
 from flwr.common import GRPC_MAX_MESSAGE_LENGTH, serde
-from flwr.common.logger import log
 from flwr.common.message import Message, Metadata
 from flwr.common.record import RecordSet
 from flwr.common.retry_invoker import RetryInvoker, exponential
@@ -166,35 +164,6 @@ def _init_retry_invoker() -> RetryInvoker:
         recoverable_exceptions=grpc.RpcError,
         max_tries=1,
         max_time=None,
-        on_giveup=lambda retry_state: (
-            log(
-                WARN,
-                "Giving up reconnection after %.2f seconds and %s tries.",
-                retry_state.elapsed_time,
-                retry_state.tries,
-            )
-            if retry_state.tries > 1
-            else None
-        ),
-        on_success=lambda retry_state: (
-            log(
-                INFO,
-                "Connection successful after %.2f seconds and %s tries.",
-                retry_state.elapsed_time,
-                retry_state.tries,
-            )
-            if retry_state.tries > 1
-            else None
-        ),
-        on_backoff=lambda retry_state: (
-            log(WARN, "Connection attempt failed, retrying...")
-            if retry_state.tries == 1
-            else log(
-                DEBUG,
-                "Connection attempt failed, retrying in %.2f seconds",
-                retry_state.actual_wait,
-            )
-        ),
     )
 
 
@@ -415,9 +384,8 @@ class TestAuthenticateClientInterceptor(unittest.TestCase):
             None,
             (self._client_private_key, self._client_public_key),
         ) as conn:
-            _, _, create_node, _, _, _ = conn
-            assert create_node is not None
-            create_node()
+            with self.assertRaises(grpc.RpcError):
+                conn.create_node()
 
             assert self._servicer.received_client_metadata() is None
 
