@@ -114,6 +114,10 @@ class GrpcBidiConnection(Connection):
         self.queue = queue
         self.server_message_iterator = server_message_iterator
 
+    def ping(self) -> None:
+        """Ping the SuperLink."""
+        log(DEBUG, "Ping API is not supported by GrpcBidiConnection.")
+
     def create_node(self) -> int | None:
         """Request to create a node."""
         log(DEBUG, "CreateNode API is not supported by GrpcBidiConnection.")
