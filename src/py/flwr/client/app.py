@@ -18,11 +18,10 @@ import signal
 import subprocess
 import sys
 import time
-from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import ERROR, INFO, WARN
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple, Type, Union, cast
+from typing import Callable, Optional, Union, cast
 
 import grpc
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -672,7 +671,7 @@ def start_numpy_client(
 
 def _init_connection(
     transport: Optional[str], server_address: str
-) -> Tuple[Type[Connection], str, Type[Exception]]:
+) -> tuple[type[Connection], str, type[Exception]]:
     # Parse IP address
     parsed_address = parse_address(server_address)
     if not parsed_address:
@@ -685,7 +684,7 @@ def _init_connection(
         transport = TRANSPORT_TYPE_GRPC_BIDI
 
     # Use grpc-rere/grpc-adapter/rest/grpc-bidi transport layer
-    connection: Optional[Type[Connection]] = None
+    connection: Optional[type[Connection]] = None
     if transport == TRANSPORT_TYPE_REST:
         try:
             from requests.exceptions import RequestException

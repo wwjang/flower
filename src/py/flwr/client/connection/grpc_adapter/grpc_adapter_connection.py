@@ -101,7 +101,6 @@ class GrpcAdapterFleetAPI(FleetAPI):
 
     def _send_and_receive(
         self, request: GrpcMessage, response_type: type[T], **kwargs: Any
-        self, request: GrpcMessage, response_type: type[T], **kwargs: Any
     ) -> T:
         # Serialize request
         container_req = MessageContainer(

@@ -20,7 +20,6 @@ import threading
 import unittest
 from collections.abc import Sequence
 from concurrent import futures
-from logging import DEBUG, INFO, WARN
 from typing import Optional, Union
 
 import grpc
