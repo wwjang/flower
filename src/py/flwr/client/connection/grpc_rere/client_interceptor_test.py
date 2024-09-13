@@ -18,8 +18,10 @@
 import base64
 import threading
 import unittest
+from collections.abc import Sequence
 from concurrent import futures
-from typing import Optional, Sequence, Tuple, Union
+from logging import DEBUG, INFO, WARN
+from typing import Optional, Union
 
 import grpc
 
@@ -58,7 +60,7 @@ class _MockServicer:
         """Initialize mock servicer."""
         self._lock = threading.Lock()
         self._received_client_metadata: Optional[
-            Sequence[Tuple[str, Union[str, bytes]]]
+            Sequence[tuple[str, Union[str, bytes]]]
         ] = None
         self.server_private_key, self.server_public_key = generate_key_pairs()
         self._received_message_bytes: bytes = b""
@@ -103,7 +105,7 @@ class _MockServicer:
 
     def received_client_metadata(
         self,
-    ) -> Optional[Sequence[Tuple[str, Union[str, bytes]]]]:
+    ) -> Optional[Sequence[tuple[str, Union[str, bytes]]]]:
         """Return received client metadata."""
         with self._lock:
             return self._received_client_metadata
@@ -149,7 +151,7 @@ def _add_generic_handler(servicer: _MockServicer, server: grpc.Server) -> None:
 
 
 def _get_value_from_tuples(
-    key_string: str, tuples: Sequence[Tuple[str, Union[str, bytes]]]
+    key_string: str, tuples: Sequence[tuple[str, Union[str, bytes]]]
 ) -> bytes:
     value = next((value for key, value in tuples if key == key_string), "")
     if isinstance(value, str):
